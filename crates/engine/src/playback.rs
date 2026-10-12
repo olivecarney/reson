@@ -88,9 +88,32 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
     if let Some(meta) = probed.format.metadata().current() {
         for tag in meta.tags() {
             match tag.std_key {
-                Some(StandardTagKey::TrackTitle) => info.title = tag.value.to_string(),
-                Some(StandardTagKey::Artist) => info.artist = Some(tag.value.to_string()),
-                Some(StandardTagKey::Album) => info.album = Some(tag.value.to_string()),
+                Some(StandardTagKey::TrackTitle) => {
+                    info.title = tag
+                        .value
+                        .to_string()
+                        .trim_end_matches('\0')
+                        .trim()
+                        .to_owned()
+                }
+                Some(StandardTagKey::Artist) => {
+                    info.artist = Some(
+                        tag.value
+                            .to_string()
+                            .trim_end_matches('\0')
+                            .trim()
+                            .to_owned(),
+                    )
+                }
+                Some(StandardTagKey::Album) => {
+                    info.album = Some(
+                        tag.value
+                            .to_string()
+                            .trim_end_matches('\0')
+                            .trim()
+                            .to_owned(),
+                    )
+                }
                 _ => {}
             }
         }
@@ -118,13 +141,15 @@ impl Backend for RodioBackend {
         let decoder = Decoder::try_from(file).map_err(|e| EngineError::Decode(e.to_string()))?;
         self.failed.store(false, Ordering::Relaxed);
         let failed = self.failed.clone();
-        let mut stream = DeviceSinkBuilder::from_default_device()
-            .map_err(|e| EngineError::Output(e.to_string()))?
-            .with_error_callback(move |_| {
-                failed.store(true, Ordering::Relaxed);
-            })
-            .open_stream()
-            .map_err(|e| EngineError::Output(e.to_string()))?;
+        let mut stream = configure_output(
+            DeviceSinkBuilder::from_default_device()
+                .map_err(|e| EngineError::Output(e.to_string()))?,
+        )
+        .with_error_callback(move |_| {
+            failed.store(true, Ordering::Relaxed);
+        })
+        .open_stream()
+        .map_err(|e| EngineError::Output(e.to_string()))?;
         stream.log_on_drop(false);
         info.output_rate = Some(stream.config().sample_rate().get());
         info.output_channels = Some(stream.config().channel_count().get());
@@ -318,6 +343,10 @@ fn run_worker<B: Backend>(
                             active_generation = env.generation;
                         }
                         Err(e) => {
+                            if let Ok(mut info) = probe(&path) {
+                                info.generation = env.generation;
+                                *s = info;
+                            }
                             s.fail(e.to_string());
                             s.acknowledged = env.sequence;
                         }
@@ -378,3 +407,7 @@ fn run_worker<B: Backend>(
 #[cfg(test)]
 #[path = "worker_tests.rs"]
 mod tests;
+
+fn configure_output(builder: DeviceSinkBuilder) -> DeviceSinkBuilder {
+    builder.with_buffer_size(rodio::cpal::BufferSize::Default)
+}

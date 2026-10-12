@@ -12,7 +12,7 @@ impl Backend for Fake {
         if path == Path::new("slow") {
             thread::sleep(Duration::from_millis(100));
         }
-        if path == Path::new("bad") {
+        if path == Path::new("bad") || path.extension().is_some_and(|x| x == "wav") {
             return Err(EngineError::Output("no device".into()));
         }
         self.active = true;
@@ -113,5 +113,76 @@ fn worker_panic_becomes_error() {
     e.send(Command::Load("panic".into())).unwrap();
     wait(&e, PlaybackState::Error);
     assert!(e.snapshot().error.unwrap().contains("panic"));
+    e.shutdown().unwrap();
+}
+#[test]
+fn stopped_play_reloads_without_deadlock() {
+    let (mut e, _) = engine();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Stop).unwrap();
+    wait(&e, PlaybackState::Stopped);
+    e.send(Command::Play).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.shutdown().unwrap();
+}
+#[test]
+fn device_builder_uses_os_buffer_size() {
+    let builder = configure_output(
+        DeviceSinkBuilder::default().with_buffer_size(rodio::cpal::BufferSize::Fixed(2048)),
+    );
+    assert!(format!("{builder:?}").contains("buffer_size: Default"));
+}
+#[test]
+fn output_failure_retains_metadata() {
+    let (mut e, _) = engine();
+    let p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/pcm16-44100-1.wav");
+    e.send(Command::Load(p)).unwrap();
+    wait(&e, PlaybackState::Error);
+    assert_eq!(e.snapshot().sample_rate, Some(44100));
+    assert_eq!(e.snapshot().title, "pcm16-44100-1");
+    e.shutdown().unwrap();
+}
+#[test]
+fn in_flight_replacement_never_publishes_old_metadata() {
+    struct Blocking {
+        started: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+    }
+    impl Backend for Blocking {
+        fn load(&mut self, path: &Path) -> Result<Snapshot, EngineError> {
+            if path == Path::new("old") {
+                self.started.send(()).unwrap();
+                self.release.recv().unwrap();
+            }
+            Ok(Snapshot {
+                path: path.to_string_lossy().into(),
+                title: path.to_string_lossy().into(),
+                ..Snapshot::default()
+            })
+        }
+        fn play(&mut self) {}
+        fn pause(&mut self) {}
+        fn stop(&mut self) {}
+        fn poll(&mut self) -> Result<(f64, bool), EngineError> {
+            Ok((0.0, false))
+        }
+    }
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let mut e = Engine::with_backend(move || Blocking {
+        started: started_tx,
+        release: release_rx,
+    })
+    .unwrap();
+    e.send(Command::Load("old".into())).unwrap();
+    started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+    e.send(Command::Load("new".into())).unwrap();
+    assert_eq!(e.snapshot().path, "new");
+    assert!(e.snapshot().title.is_empty());
+    release_tx.send(()).unwrap();
+    wait(&e, PlaybackState::Playing);
+    assert_eq!(e.snapshot().title, "new");
     e.shutdown().unwrap();
 }

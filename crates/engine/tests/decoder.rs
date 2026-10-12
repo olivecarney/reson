@@ -45,3 +45,9 @@ fn malformed_input_returns_error() {
 fn missing_path_returns_error() {
     assert!(probe(&fixture("missing.wav")).is_err());
 }
+#[test]
+fn metadata_text_has_no_container_padding() {
+    let info = probe(&fixture("tagged.wav")).unwrap();
+    assert_eq!(info.title, "Fixture title");
+    assert_eq!(info.artist.as_deref(), Some("Fixture artist"));
+}

@@ -13,3 +13,4 @@ for bits, rate, channels in [(16,44100,1),(24,48000,2)]:
         f.setnchannels(channels); f.setsampwidth(width); f.setframerate(rate); f.writeframes(data)
     subprocess.run(['ffmpeg','-v','error','-y','-i',str(path),str(root/(name+'.flac'))],check=True)
 (root / 'malformed.wav').write_bytes(b'RIFF\x00\x00\x00\x00WAVEtruncated')
+subprocess.run(['ffmpeg','-v','error','-y','-i',str(root/'pcm16-44100-1.wav'),'-c:a','pcm_s16le','-metadata','title=Fixture title','-metadata','artist=Fixture artist',str(root/'tagged.wav')],check=True)
