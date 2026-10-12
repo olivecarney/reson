@@ -7,3 +7,4 @@ Task 1: complete — five state tests RED (missing model) → GREEN; cargo fmt c
 Ruling: Engine::send uses &mut self to serialize command sequence assignment; Swift already serializes handle access. No new concurrency abstraction.
 Ruling: retain rodio callback decoding/locking as an explicit prototype limitation, not a real-time guarantee; user requested rodio initially. Later callback buffering remains unverified work.
 Task 2: complete — 11 state/worker tests and 4 decoder tests passed; clippy and release build passed after replacing a linted match with matches!. Test-first logs show missing probe/worker APIs before implementation.
+Task 3: complete — 19 Rust tests passed (including four FFI integration tests RED→GREEN); clippy and C header syntax passed. Caller-owned JSON text contains output fields; snapshot acknowledgement sequence appended to C ABI to prevent stopping UI refresh before queued controls finish.
