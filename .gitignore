@@ -1,0 +1,5 @@
+/target/
+/build/
+macos/.build/
+.superpowers/
+.DS_Store
