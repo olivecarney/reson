@@ -241,3 +241,115 @@ fn commands_do_not_wait_for_backend_teardown() {
     e.shutdown().unwrap();
     assert!(immediate, "enqueue waited for backend teardown");
 }
+struct Monitored {
+    failed: Arc<AtomicBool>,
+    polls: Arc<AtomicUsize>,
+    drops: Arc<AtomicUsize>,
+    active: bool,
+}
+impl Backend for Monitored {
+    fn load(&mut self, p: &Path) -> Result<Snapshot, EngineError> {
+        self.failed.store(false, Ordering::SeqCst);
+        self.active = true;
+        Ok(Snapshot {
+            path: p.to_string_lossy().into(),
+            title: "monitored".into(),
+            ..Snapshot::default()
+        })
+    }
+    fn play(&mut self) {}
+    fn pause(&mut self) {}
+    fn stop(&mut self) {
+        if self.active {
+            self.active = false;
+            self.drops.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    fn poll(&mut self) -> Result<(f64, bool), EngineError> {
+        let count = self.polls.fetch_add(1, Ordering::SeqCst) + 1;
+        if self.failed.load(Ordering::SeqCst) {
+            return Err(EngineError::Output("paused output failed".into()));
+        }
+        Ok((count as f64, false))
+    }
+}
+fn monitored() -> (Engine, Arc<AtomicBool>, Arc<AtomicUsize>, Arc<AtomicUsize>) {
+    let failed = Arc::new(AtomicBool::new(false));
+    let polls = Arc::new(AtomicUsize::new(0));
+    let drops = Arc::new(AtomicUsize::new(0));
+    let backend = Monitored {
+        failed: failed.clone(),
+        polls: polls.clone(),
+        drops: drops.clone(),
+        active: false,
+    };
+    (
+        Engine::with_backend(move || backend).unwrap(),
+        failed,
+        polls,
+        drops,
+    )
+}
+#[test]
+fn paused_output_failure_is_detected_and_replay_recovers() {
+    let (mut e, failed, _, drops) = monitored();
+    e.send(Command::Load("a".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    failed.store(true, Ordering::SeqCst);
+    // Check before asserting so the old implementation always shuts down on failure.
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    while e.snapshot().state != PlaybackState::Error && std::time::Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(5));
+    }
+    let detected = e.snapshot().state == PlaybackState::Error;
+    if !detected {
+        e.shutdown().unwrap();
+        assert!(detected, "paused backend failure was not observed");
+        return;
+    }
+    e.send(Command::Play).unwrap();
+    wait(&e, PlaybackState::Playing);
+    assert!(e.snapshot().error.is_none());
+    assert!(drops.load(Ordering::SeqCst) > 0);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    failed.store(true, Ordering::SeqCst);
+    wait(&e, PlaybackState::Error);
+    e.send(Command::Load("b".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    assert_eq!(e.snapshot().path, "b");
+    e.shutdown().unwrap();
+}
+#[test]
+fn paused_checks_are_modest_and_position_is_frozen() {
+    let (mut e, _, polls, _) = monitored();
+    e.send(Command::Load("a".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    thread::sleep(Duration::from_millis(120));
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    let position = e.snapshot().position_seconds;
+    let before = polls.load(Ordering::SeqCst);
+    thread::sleep(Duration::from_millis(1150));
+    let checks = polls.load(Ordering::SeqCst) - before;
+    let after = e.snapshot().position_seconds;
+    e.shutdown().unwrap();
+    assert!((1..=4).contains(&checks), "paused checks: {checks}");
+    assert_eq!(after, position);
+}
+#[test]
+fn no_stream_means_no_backend_polling() {
+    let (mut e, _, polls, _) = monitored();
+    thread::sleep(Duration::from_millis(650));
+    assert_eq!(polls.load(Ordering::SeqCst), 0);
+    e.send(Command::Load("a".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Stop).unwrap();
+    wait(&e, PlaybackState::Stopped);
+    let before = polls.load(Ordering::SeqCst);
+    thread::sleep(Duration::from_millis(650));
+    assert_eq!(polls.load(Ordering::SeqCst), before);
+    e.shutdown().unwrap();
+}

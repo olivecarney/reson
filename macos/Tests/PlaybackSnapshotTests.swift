@@ -6,7 +6,7 @@ final class PlaybackSnapshotTests: XCTestCase {
         XCTAssertTrue(s.needsRefresh(expected: 2))
         s.acknowledged = 2; XCTAssertFalse(s.needsRefresh(expected: 2))
         s.state = 2; XCTAssertTrue(s.needsRefresh(expected: 2))
-        s.state = 3; XCTAssertFalse(s.needsRefresh(expected: 2))
+        s.state = 3; XCTAssertTrue(s.needsRefresh(expected: 2))
     }
     func testReplacementRejectsStaleSnapshot() {
         var s = PlaybackSnapshot(); s.generation = 1; s.path = "old.wav"

@@ -10,7 +10,7 @@ Inspected the pinned rodio sources stream.rs, player.rs, decoder/symphonia.rs, q
 
 Rodio uses floating samples and adapts rate/channels to the output stream. CoreAudio may additionally mix or convert. Lossless input does not establish bit-perfect output; 32-bit integer precision, rate-conversion transparency and exclusive hardware access are not verified. No gapless claim.
 
-Startup is silent and lazy. Stop/EOF closes playback resources; pause retains the stream (which can continue rendering silence). Output callback errors set an atomic flag; the worker reports an error while playing. Errors occurring while paused are checked after resume. Corruption encountered after initial decoder construction may be treated as EOF/skipped packets by rodio rather than a detailed error; this is a dependency limitation.
+Startup is silent and lazy. Stop/EOF closes playback resources; pause retains the stream (which can continue rendering silence). Output callback errors set an atomic flag. The worker checks while playing (100 ms timeout) and while an output stream remains paused (500 ms timeout), preserving paused position. Failed streams are released and can be retried by Play or a new load. The UI checks paused snapshots once per second, so it can display errors without requiring resume. Empty/stopped/error engines block indefinitely on commands. Corruption encountered after initial decoder construction may be treated as EOF/skipped packets by rodio rather than a detailed error; this is a dependency limitation.
 
 ## Observed live configuration
 

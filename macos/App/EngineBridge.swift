@@ -19,7 +19,7 @@ struct PlaybackSnapshot: Equatable {
     var outputRate: UInt32?
     var outputChannels: UInt32?
     var outputFormat: String?
-    func needsRefresh(expected: UInt64) -> Bool { state == 1 || state == 2 || acknowledged < expected }
+    func needsRefresh(expected: UInt64) -> Bool { state == 1 || state == 2 || state == 3 || acknowledged < expected }
     func acceptable(after generation: UInt64) -> Bool { self.generation >= generation }
     var stateLabel: String { ["Ready", "Loading", "Playing", "Paused", "Stopped", "Ended", "Error"][Int(min(state, 6))] }
     var displayTitle: String { title.isEmpty ? URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent : title }
@@ -43,12 +43,14 @@ final class EngineBridge: @unchecked Sendable {
     private let queue = DispatchQueue(label: "reson.bridge")
     private var handle: OpaquePointer?
     private var sequence: UInt64 = 0
+    private var closed = false // Queue-owned, terminal even if no handle was created.
     private func perform<T>(_ operation: @escaping () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             queue.async { continuation.resume(with: Result { try operation() }) }
         }
     }
     private func engine() throws -> OpaquePointer {
+        guard !closed else { throw BridgeError.closed }
         if let handle { return handle }
         var created: OpaquePointer?
         let status = reson_engine_create(&created)
@@ -103,9 +105,13 @@ final class EngineBridge: @unchecked Sendable {
     }
     func shutdown() async {
         _ = try? await perform { [self] in
-            if let handle { reson_engine_destroy(handle); self.handle = nil }
+            guard !closed else { return }
+            closed = true
+            if let handle { self.handle = nil; reson_engine_destroy(handle) }
         }
     }
+    // Queued work retains self until it finishes. Once deinit runs there are no
+    // competing handle accesses; the fallback captures only the pointer, never self.
     deinit {
         if let handle { queue.async { reson_engine_destroy(handle) } }
     }

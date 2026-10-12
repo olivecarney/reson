@@ -70,7 +70,7 @@ final class PlayerModel {
                         if !snapshot.needsRefresh(expected: expected) { return }
                     }
                 } catch { if !Task.isCancelled { message = error.localizedDescription }; return }
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .milliseconds(playback.state == 3 ? 1000 : 250))
             } while !Task.isCancelled
         }
     }

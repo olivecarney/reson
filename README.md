@@ -4,7 +4,9 @@ A lightweight native macOS player for local lossless music.
 
 Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-**Status: v0.1 playback prototype.** Reson can open and play FLAC/WAV files; library indexing and persistent playlists are still ahead.
+**Status: v0.1.1 playback prototype.** Reson can open and play FLAC/WAV files; library indexing and persistent playlists are still ahead.
+
+v0.1.1 hardens terminal shutdown, detects paused output failures and reuses native table cells. It adds no player features. See the [maintenance validation record](docs/validation-v0.1.1.md).
 
 ## What works
 
@@ -108,7 +110,7 @@ clang -fsyntax-only -x c macos/Bridge/include/reson.h
 plutil -lint build/Reson.app/Contents/Info.plist
 ```
 
-The initial validation passed **25 Rust tests and 2 Swift tests**, plus the release build and checks above. Rust tests run without an audio output device.
+The v0.1.1 validation passed **28 Rust tests and 9 Swift tests**, plus the release build and checks above. Rust tests run without an audio output device.
 
 Fixtures are checked in; regenerating them requires Python 3 and ffmpeg:
 

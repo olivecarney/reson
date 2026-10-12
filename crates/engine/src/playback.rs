@@ -289,9 +289,10 @@ fn run_worker<B: Backend>(
 ) {
     let mut active_generation = 0;
     let mut playing = false;
+    let mut output_active = false;
     while !closing.load(Ordering::Relaxed) {
-        let received = if playing {
-            rx.recv_timeout(Duration::from_millis(100))
+        let received = if output_active {
+            rx.recv_timeout(Duration::from_millis(if playing { 100 } else { 500 }))
                 .map_err(|e| !matches!(e, mpsc::RecvTimeoutError::Timeout))
         } else {
             rx.recv().map_err(|_| true)
@@ -319,6 +320,7 @@ fn run_worker<B: Backend>(
                 };
                 if let Some(path) = load_path {
                     backend.stop();
+                    output_active = false;
                     playing = false;
                     {
                         let mut s = lock(shared);
@@ -345,6 +347,7 @@ fn run_worker<B: Backend>(
                             info.acknowledged = env.sequence;
                             *s = info;
                             playing = true;
+                            output_active = true;
                             active_generation = env.generation;
                         }
                         Err(e) => {
@@ -360,7 +363,10 @@ fn run_worker<B: Backend>(
                     match &env.command {
                         Command::Play => backend.play(),
                         Command::Pause => backend.pause(),
-                        Command::Stop => backend.stop(),
+                        Command::Stop => {
+                            backend.stop();
+                            output_active = false;
+                        }
                         _ => {}
                     }
                     let mut s = lock(shared);
@@ -394,11 +400,14 @@ fn run_worker<B: Backend>(
                 }
                 match result {
                     Ok((pos, ended)) => {
-                        s.position_seconds = pos;
-                        if ended {
+                        if playing {
+                            s.position_seconds = pos;
+                        }
+                        if playing && ended {
                             s.end();
                             drop(s);
                             backend.stop();
+                            output_active = false;
                             playing = false;
                         }
                     }
@@ -406,6 +415,7 @@ fn run_worker<B: Backend>(
                         s.fail(e.to_string());
                         drop(s);
                         backend.stop();
+                        output_active = false;
                         playing = false;
                     }
                 }

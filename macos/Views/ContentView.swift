@@ -65,7 +65,7 @@ struct ContentView: View {
             Text("PLAYLISTS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 30)
             Text("Coming later").font(.system(size: 12)).foregroundStyle(.tertiary).padding(.horizontal, 20).padding(.top, 12)
             Spacer()
-            Text("LOCAL MUSIC · v0.1").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
+            Text("LOCAL MUSIC · v0.1.1").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
         }.frame(maxHeight: .infinity).background(.ultraThinMaterial)
     }
 }
