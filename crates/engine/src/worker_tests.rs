@@ -186,3 +186,58 @@ fn in_flight_replacement_never_publishes_old_metadata() {
     assert_eq!(e.snapshot().title, "new");
     e.shutdown().unwrap();
 }
+#[test]
+fn commands_do_not_wait_for_backend_teardown() {
+    struct SlowStop {
+        active: bool,
+        started: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+    }
+    impl Backend for SlowStop {
+        fn load(&mut self, p: &Path) -> Result<Snapshot, EngineError> {
+            self.active = true;
+            Ok(Snapshot {
+                path: p.to_string_lossy().into(),
+                title: "track".into(),
+                ..Snapshot::default()
+            })
+        }
+        fn play(&mut self) {}
+        fn pause(&mut self) {}
+        fn stop(&mut self) {
+            if self.active {
+                self.active = false;
+                self.started.send(()).unwrap();
+                self.release.recv().unwrap();
+            }
+        }
+        fn poll(&mut self) -> Result<(f64, bool), EngineError> {
+            Ok((0.0, false))
+        }
+    }
+    let (started_tx, started_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let mut e = Engine::with_backend(move || SlowStop {
+        active: false,
+        started: started_tx,
+        release: release_rx,
+    })
+    .unwrap();
+    e.send(Command::Load("a".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Stop).unwrap();
+    started_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+    let (done_tx, done_rx) = mpsc::channel();
+    let sender = thread::spawn(move || {
+        let result = e.send(Command::Pause);
+        done_tx.send(result.is_ok()).unwrap();
+        e
+    });
+    let immediate = done_rx
+        .recv_timeout(Duration::from_millis(100))
+        .unwrap_or(false);
+    release_tx.send(()).unwrap();
+    let mut e = sender.join().unwrap();
+    e.shutdown().unwrap();
+    assert!(immediate, "enqueue waited for backend teardown");
+}

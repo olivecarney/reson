@@ -11,3 +11,9 @@ Inspected the pinned rodio sources stream.rs, player.rs, decoder/symphonia.rs, q
 Rodio uses floating samples and adapts rate/channels to the output stream. CoreAudio may additionally mix or convert. Lossless input does not establish bit-perfect output; 32-bit integer precision, rate-conversion transparency and exclusive hardware access are not verified. No gapless claim.
 
 Startup is silent and lazy. Stop/EOF closes playback resources; pause retains the stream (which can continue rendering silence). Output callback errors set an atomic flag; the worker reports an error while playing. Errors occurring while paused are checked after resume. Corruption encountered after initial decoder construction may be treated as EOF/skipped packets by rodio rather than a detailed error; this is a dependency limitation.
+
+## Observed live configuration
+
+On 13 October 2026, synthetic 24-bit stereo 44.1 kHz WAV and FLAC sources opened a 48 kHz stereo F32 stream on the default AirPods output. This explicitly involves rate conversion. It does not measure the device's physical output precision. Live command-state checks passed; no listening/loopback capture was completed.
+
+Rodio's chosen Fixed(2048) buffer was outside that device's supported 15..960-frame range. Reson overrides the builder to use `cpal::BufferSize::Default` (OS-selected), retaining its actual rate/channels/sample format. This avoids hardcoded device latency assumptions without selecting or modifying the user's device.

@@ -327,6 +327,11 @@ fn run_worker<B: Backend>(
                         }
                     }
                     let result = backend.load(&path);
+                    let fallback = if result.is_err() {
+                        probe(&path).ok()
+                    } else {
+                        None
+                    };
                     let mut s = lock(shared);
                     if s.generation != env.generation {
                         drop(s);
@@ -343,7 +348,7 @@ fn run_worker<B: Backend>(
                             active_generation = env.generation;
                         }
                         Err(e) => {
-                            if let Ok(mut info) = probe(&path) {
+                            if let Some(mut info) = fallback {
                                 info.generation = env.generation;
                                 *s = info;
                             }
@@ -352,23 +357,26 @@ fn run_worker<B: Backend>(
                         }
                     }
                 } else {
+                    match &env.command {
+                        Command::Play => backend.play(),
+                        Command::Pause => backend.pause(),
+                        Command::Stop => backend.stop(),
+                        _ => {}
+                    }
                     let mut s = lock(shared);
                     if s.generation != env.generation {
                         continue;
                     }
                     match env.command {
                         Command::Play => {
-                            backend.play();
                             s.play();
                             playing = s.state == PlaybackState::Playing;
                         }
                         Command::Pause => {
-                            backend.pause();
                             s.pause();
                             playing = false;
                         }
                         Command::Stop => {
-                            backend.stop();
                             s.stop();
                             playing = false;
                         }
@@ -389,12 +397,14 @@ fn run_worker<B: Backend>(
                         s.position_seconds = pos;
                         if ended {
                             s.end();
+                            drop(s);
                             backend.stop();
                             playing = false;
                         }
                     }
                     Err(e) => {
                         s.fail(e.to_string());
+                        drop(s);
                         backend.stop();
                         playing = false;
                     }
