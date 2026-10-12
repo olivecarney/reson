@@ -1,5 +1,33 @@
+# Rust build artifacts. Keep Cargo.lock tracked for reproducible app builds.
 /target/
+
+# Packaged apps, generated test tones and local build outputs.
 /build/
+/DerivedData/
+
+# Swift Package Manager and Xcode user state.
 macos/.build/
+macos/.swiftpm/
+**/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Local agent scratch state.
 .superpowers/
+
+# macOS filesystem metadata.
 .DS_Store
+.AppleDouble
+._*
+
+# Editor temporary files.
+*~
+*.swp
+*.swo
+
+# Local environment and signing secrets.
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx

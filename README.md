@@ -1,32 +1,102 @@
 # Reson
 
-A small native macOS local music player. v0.1 is a playback foundation: one Rust engine crate, a thin C ABI, and SwiftUI/AppKit. No accounts, telemetry, browser engine or runtime network access.
+A lightweight native macOS player for local lossless music.
 
-## Build and launch
+Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-Requires an Apple Silicon Mac, Xcode or Command Line Tools with Swift 5.9+, and Rust 1.87+ with the `aarch64-apple-darwin` target. Prefer an official Rust toolchain with a standard library compatible with the intended deployment OS.
+**Status: v0.1 playback prototype.** Reson can open and play FLAC/WAV files; library indexing and persistent playlists are still ahead.
+
+## What works
+
+- FLAC and PCM WAV playback through a small Rust engine.
+- Play, pause, resume, stop and restart.
+- Native track table with files opened during the current session.
+- Title, artist, album and audio properties where available.
+- Dark interface, translucent sidebar and collapsible inspector.
+- Native file picker, double-click playback and macOS shortcuts.
+- Background file setup and shutdown, with protection against stale track metadata during rapid replacement.
+
+Session tracks disappear when the app quits. Artwork uses a placeholder. Artists, albums, genres and playlists in the sidebar are marked as future functionality.
+
+## Build and run
+
+### Requirements
+
+- An Apple Silicon Mac.
+- Xcode or Command Line Tools with Swift 5.9 or newer.
+- Rust 1.87 or newer with the `aarch64-apple-darwin` target.
 
 ```sh
+git clone https://github.com/olivecarney/reson.git
+cd reson
 ./scripts/build.sh
 ./scripts/run.sh
 ```
 
-The app is `build/Reson.app`. The first build downloads Rust dependencies; once cached, use `CARGO_NET_OFFLINE=true ./scripts/build.sh` for an offline build. Swift has no external package dependencies. Build again after source changes; run.sh launches an existing app without rebuilding it. Local ad-hoc signing is automatic; this is not a notarized distribution build.
+The build produces **`build/Reson.app`**, which you can also open directly. The app is signed locally with an ad-hoc signature; it is not notarized for distribution.
 
-The project targets macOS 14+, but this host's Homebrew Rust standard library was built for macOS 27. The linker warns about that mismatch. The generated app runs on this host; compatibility of this artifact with macOS 14–26 is **unverified**. Do not suppress the warning or ship this artifact to older systems without rebuilding with a compatible Rust standard library and testing there.
+The first build downloads Rust dependencies. Swift has no external package dependencies. After dependencies are cached, build offline with:
 
-## Using v0.1
+```sh
+CARGO_NET_OFFLINE=true ./scripts/build.sh
+```
 
-- Open one FLAC or WAV through Open File / Command-O. Opening starts playback.
-- Files opened in this session appear in a native track table. Double-click a row to play it.
-- Play/pause or Space pauses/resumes. Stop closes output and resets position; Play then restarts from the beginning.
-- Toggle sidebar with Control-Command-S and inspector with Option-Command-I. The inspector follows selection; transport follows current playback.
-- Metadata includes title/artist/album, source format, bit depth, rate, channels and duration where present. Missing values remain unavailable. Artwork is a native placeholder.
-- Errors appear in the window. Open a valid file or retry Play after an output failure; a worker panic requires restarting the app.
+Run `build.sh` after changing source files. `run.sh` launches the existing build and only builds when the app is missing.
 
-Folder import, persistent library/SQLite, search/sorting, playlists, artwork caching, seeking, volume controls, grid view, queue UI, gapless transitions and output-device selection are planned, not implemented. Session tracks disappear when the app quits. Artists/Albums/Genres/Playlists are visibly unavailable.
+### macOS compatibility
 
-## Checks
+The project requests macOS 14 or later. The initial build machine's Homebrew Rust standard library targets macOS 27, producing linker warnings when linked for macOS 14. That artifact was tested on the build machine; compatibility with macOS 14–26 remains unverified. For older systems, use a Rust standard library compatible with the target OS and test the resulting app there.
+
+## Controls
+
+| Action | Control |
+| --- | --- |
+| Open and play a file | **⌘O** or Open File |
+| Play a session track | Double-click its row |
+| Pause / resume | **Space** or the playback button |
+| Stop and reset position | Stop button |
+| Toggle sidebar | **⌃⌘S** |
+| Toggle inspector | **⌥⌘I** |
+
+The inspector follows the selected row; the playback bar follows the currently playing file. After Stop, Play restarts from the beginning.
+
+## Architecture
+
+```text
+SwiftUI / AppKit
+       │  C ABI: commands + copied snapshots
+       ▼
+Rust playback worker
+       │  Symphonia decoding through rodio
+       ▼
+cpal → CoreAudio → default output device
+```
+
+One Rust crate owns the playback backend. A bounded command queue keeps file and device setup off the main UI thread. Accepted loads advance a generation fence so superseded work cannot publish old metadata. Swift serializes bridge calls and destroys the engine on a background queue.
+
+```text
+crates/engine/     Playback, state model, C exports and Rust tests
+macos/App/        App lifecycle, observable state and bridge ownership
+macos/Views/      SwiftUI layout and AppKit track table
+macos/Bridge/     C header and Swift module maps
+scripts/          Build, launch and fixture generation
+tests/fixtures/  Original synthetic WAV/FLAC test data
+docs/            Audio behaviour, validation and benchmark protocol
+```
+
+The [C header](macos/Bridge/include/reson.h) documents pointer ownership, buffer sizing, status codes and threading. Rodio-specific types stay inside the playback implementation so the backend can be replaced without changing the Swift interface.
+
+## Audio behaviour
+
+Lossless input does **not** imply bit-perfect output. The prototype uses the default output device and reports source properties separately from the configured output stream. Live checks observed 44.1 kHz sources feeding a 48 kHz stereo F32 stream, involving rate conversion.
+
+Rodio can read files, decode, allocate and lock through its output callback path. Strict real-time guarantees are not met by this prototype. Pause retains the output stream; Stop and EOF release it. Shutdown waits for in-flight file/device operations on a background queue.
+
+Live engine state checks passed for WAV and FLAC, including pause/resume, stop/restart, EOF, error recovery and shutdown. Audible output was not independently verified by listening or loopback capture.
+
+See [audio-path notes](docs/audio-path.md) and the [validation record](docs/validation.md) for evidence and remaining gaps.
+
+## Development checks
 
 ```sh
 cargo fmt --all -- --check
@@ -38,9 +108,15 @@ clang -fsyntax-only -x c macos/Bridge/include/reson.h
 plutil -lint build/Reson.app/Contents/Info.plist
 ```
 
-The test suite covers states, generation fences, in-flight replacement, queue saturation, teardown responsiveness, worker errors/panic, source metadata/decoded samples and C ownership/buffer rules. Swift tests cover acknowledgement refresh and rejection of old generations. Rust tests do not require an output device.
+The initial validation passed **25 Rust tests and 2 Swift tests**, plus the release build and checks above. Rust tests run without an audio output device.
 
-For explicit live-device testing, create two longer synthetic test files (ffmpeg is development-only):
+Fixtures are checked in; regenerating them requires Python 3 and ffmpeg:
+
+```sh
+python3 scripts/generate-fixtures.py
+```
+
+See [fixture provenance](tests/fixtures/README.md). For explicit live-device checks, generate longer test files and run the smoke-check example:
 
 ```sh
 mkdir -p build
@@ -49,18 +125,20 @@ ffmpeg -v error -y -i build/check.wav -c:a flac build/check.flac
 cargo run --release -p reson-engine --example live_check -- build/check.wav build/check.flac
 ```
 
-This starts audio on the current default output. It checks engine acknowledgements, pause/resume, stop/restart, EOF, missing-file recovery and shutdown. It does **not** independently capture or establish audible output.
+This plays a synthetic tone on the default output device. It verifies engine behaviour, not physical output precision.
 
-See [validation](docs/validation.md), [audio behaviour](docs/audio-path.md), [benchmark protocol](docs/benchmarks.md) and [fixture provenance](tests/fixtures/README.md).
+## Next milestones
 
-## Engine and bridge
+1. Folder import, metadata indexing, persistence and search/sorting.
+2. Persistent playlists, ordering, a separate queue and M3U8 import/export.
+3. Artwork caching and further native interface polish.
+4. Seeking, output-device selection, gapless playback and audio-path verification.
+5. Performance measurements and optimization based on the [benchmark protocol](docs/benchmarks.md).
 
-`crates/engine` owns decoding/output on one worker; a bounded 16-command queue uses nonblocking enqueue. New accepted loads advance a generation fence; superseded queued loads are skipped and obsolete completions never replace current metadata. Stream setup and file operations run on the worker. Rust's backend is private to playback.rs, so the C interface and Swift do not depend on rodio types.
+No startup, memory or CPU benchmark results are claimed yet. Compact-window resizing and older macOS compatibility still need validation.
 
-`macos/App/EngineBridge.swift` serializes all C calls on a dispatch queue. Rust owns the opaque handle; Swift destroys it once, off the main UI thread, after prior calls. UTF-8 paths are copied before the call returns. C snapshots contain fixed-layout scalars and JSON copied into caller-owned buffers, including a required-capacity result for resizing. Expected errors use statuses/snapshot messages; panics are contained at Rust entry points and the worker boundary. Invalid/dangling pointers, calls after destruction and overlapping destruction are outside the API contract. The header documents these rules.
+## License
 
-UI refresh is 4 Hz while loading/playing or waiting for command acknowledgement, and stops in acknowledged stable states. The idle worker blocks on commands. Pause retains the output stream and may continue rendering silence. Rodio decodes through its callback iterator; strict real-time callback guarantees and bit-perfect output are **not** claimed. Shutdown waits for an in-flight file/device operation on a background queue; there is no forced thread cancellation or bounded shutdown guarantee for a stalled filesystem/driver.
+A license for original Reson code has not yet been selected; MIT is proposed. Until a license is added, this repository should not be treated as MIT-licensed.
 
-## Licenses
-
-MIT is proposed for original Reson code; the project license has not yet been selected, and there is no publication in this milestone. Dependencies retain their own licenses: rodio/cpal are MIT or Apache-2.0, Symphonia is MPL-2.0, serde_json is MIT or Apache-2.0. Check the complete locked dependency licenses before distribution. All fixtures are original synthetic PCM; no third-party music, application code or artwork is included.
+Dependencies retain their own licenses, including rodio/cpal (MIT or Apache-2.0), Symphonia (MPL-2.0) and serde_json (MIT or Apache-2.0). Fixtures are original synthetic audio; no third-party music, artwork or application code is included.
