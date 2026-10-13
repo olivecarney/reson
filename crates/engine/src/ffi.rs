@@ -134,7 +134,7 @@ pub unsafe extern "C" fn reson_engine_snapshot(
             return 1;
         }
         let s = unsafe { &*handle }.engine.snapshot();
-        let json = serde_json::json!({"path":s.path,"title":s.title,"artist":s.artist,"album":s.album,"format":s.format,"error":s.error,"output_notice":s.output_notice,"output_rate":s.output_rate,"output_channels":s.output_channels,"output_sample_format":s.output_sample_format});
+        let json = serde_json::json!({"path":s.path,"title":s.title,"artist":s.artist,"album":s.album,"format":s.format,"error":s.error,"failure_kind":s.failure_kind,"output_notice":s.output_notice,"output_rate":s.output_rate,"output_channels":s.output_channels,"output_sample_format":s.output_sample_format});
         let Ok(bytes) = serde_json::to_vec(&json) else {
             return 5;
         };

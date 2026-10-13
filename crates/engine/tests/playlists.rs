@@ -143,3 +143,34 @@ fn worker_mutations_are_persistent_and_shutdown_terminal() {
         "Worker"
     );
 }
+
+#[test]
+fn worker_append_uses_current_count_and_rejects_stale_edits() {
+    let d = tempfile::tempdir().unwrap();
+    let db = d.path().join("db");
+    let mut s = LibraryStore::open(&db).unwrap();
+    let ids = seed(&mut s);
+    drop(s);
+    let mut l = Library::new(db).unwrap();
+    let p = l
+        .request(json!({"op":"playlist_create","name":"Append"}))
+        .unwrap();
+    let id = p["playlist"]["id"].as_i64().unwrap();
+    for t in &ids[..2] {
+        assert!(l
+            .request(json!({"op":"playlist_add","playlist_id":id,"ids":[t]}))
+            .unwrap()["error"]
+            .is_null());
+    }
+    let e = l
+        .request(json!({"op":"playlist_entries","playlist_id":id}))
+        .unwrap();
+    assert_eq!(e["entries"][0]["track"]["id"], ids[0]);
+    let entry = e["entries"][0]["id"].as_i64().unwrap();
+    assert!(l
+        .request(
+            json!({"op":"playlist_move","playlist_id":id,"ids":[entry],"position":2,"revision":0})
+        )
+        .unwrap()["error"]
+        .is_string());
+}

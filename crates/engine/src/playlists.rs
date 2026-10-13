@@ -65,6 +65,14 @@ impl LibraryStore {
             })?
             .collect::<rusqlite::Result<_>>()?)
     }
+    pub fn playlist_count(&self, id: i64) -> Result<u32> {
+        require(&self.connection, id)?;
+        Ok(self.connection.query_row(
+            "SELECT count(*) FROM playlist_entries WHERE playlist_id=?1",
+            [id],
+            |r| r.get(0),
+        )?)
+    }
     pub fn playlist_revision(&self, id: i64) -> Result<i64> {
         Ok(self
             .connection

@@ -78,3 +78,12 @@ final class LibraryBridge: @unchecked Sendable {
     }
     deinit { if let handle { queue.async { reson_library_destroy(handle) } } }
 }
+
+struct PlaylistRecord: Decodable, Identifiable { let id: Int64, name: String, revision: Int64 }
+struct PlaylistList: Decodable { let playlists: [PlaylistRecord] }
+struct PlaylistCreated: Decodable { let playlist: PlaylistRecord, skipped: Int? }
+struct PlaylistEntryRecord: Decodable {
+    let id: Int64, track: LibraryTrack
+    var snapshot: PlaybackSnapshot { var s=track.snapshot; s.entryID=id; if track.id==0 {s.libraryID=nil}; return s }
+}
+struct PlaylistPage: Decodable { let entries: [PlaylistEntryRecord], revision: Int64, library_revision: UInt64 }

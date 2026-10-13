@@ -24,7 +24,8 @@ struct Request {
     playlist_id: i64,
     name: String,
     ids: Vec<i64>,
-    position: u32,
+    position: Option<u32>,
+    revision: Option<i64>,
 }
 #[derive(Default, Serialize)]
 struct Status {
@@ -173,6 +174,11 @@ impl Worker {
             }
             "playlist_rename" | "playlist_delete" | "playlist_add" | "playlist_remove"
             | "playlist_move" => {
+                if let Some(revision) = request.revision {
+                    if self.store.playlist_revision(request.playlist_id)? != revision {
+                        return Err("Playlist changed; refresh and try again".into());
+                    }
+                }
                 match request.op.as_str() {
                     "playlist_rename" => self
                         .store
@@ -181,7 +187,9 @@ impl Worker {
                     "playlist_add" => self.store.add_playlist_tracks(
                         request.playlist_id,
                         &request.ids,
-                        request.position,
+                        request
+                            .position
+                            .unwrap_or(self.store.playlist_count(request.playlist_id)?),
                     )?,
                     "playlist_remove" => self
                         .store
@@ -189,7 +197,7 @@ impl Worker {
                     _ => self.store.move_playlist_entries(
                         request.playlist_id,
                         &request.ids,
-                        request.position,
+                        request.position.ok_or("Move requires a destination")?,
                     )?,
                 }
                 Ok(json!({}))
