@@ -31,3 +31,8 @@ macos/.swiftpm/
 !.env.example
 *.p12
 *.pfx
+
+# Local library databases and SQLite sidecars (may contain private music paths).
+*.db
+*.db-wal
+*.db-shm
