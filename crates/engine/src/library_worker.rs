@@ -143,6 +143,24 @@ impl Worker {
             return Err("Too many IDs".into());
         }
         match request.op.as_str() {
+            "m3u8_import" | "m3u8_export" => {
+                if request.path.is_empty()
+                    || request.path.len() > 32768
+                    || request.path.contains('\0')
+                {
+                    return Err("Invalid M3U8 path".into());
+                }
+                if request.op == "m3u8_import" {
+                    let (playlist, skipped) = self
+                        .store
+                        .import_m3u8(std::path::Path::new(&request.path), &request.name)?;
+                    Ok(json!({"playlist":playlist,"skipped":skipped}))
+                } else {
+                    self.store
+                        .export_m3u8(request.playlist_id, std::path::Path::new(&request.path))?;
+                    Ok(json!({}))
+                }
+            }
             "playlists" => Ok(json!({"playlists":self.store.playlists()?})),
             "playlist_create" => Ok(json!({"playlist":self.store.create_playlist(&request.name)?})),
             "playlist_entries" => {
