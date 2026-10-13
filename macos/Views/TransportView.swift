@@ -2,12 +2,12 @@ import SwiftUI
 struct TransportView: View {
     @Bindable var model: PlayerModel
     var body: some View {
-        HStack(spacing: 20) {
-            ZStack { RoundedRectangle(cornerRadius: 5).fill(.white.opacity(0.05)); Image(systemName: "music.note").foregroundStyle(.secondary) }.frame(width: 42, height: 42)
+        HStack(spacing: 16) {
+            ArtworkView(path: model.playback.path, revision: model.artworkRevision).frame(width: 42, height: 42)
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle).font(.system(size: 12, weight: .medium)).lineLimit(1)
                 Text(model.playback.artist ?? (model.playback.path.isEmpty ? "Open a local audio file" : model.playback.stateLabel)).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-            }.frame(width: 200, alignment: .leading)
+            }.frame(minWidth: 100, idealWidth: 200, maxWidth: 240, alignment: .leading)
             Spacer(minLength: 0)
             Button { model.togglePlayback() } label: { Image(systemName: model.playback.state == 2 ? "pause.fill" : "play.fill").font(.system(size: 18)).frame(width: 38, height: 38) }.buttonStyle(.plain).accessibilityLabel(model.playback.state == 2 ? "Pause" : "Play").disabled(model.playback.path.isEmpty || model.playback.state == 1)
             Button { model.stop() } label: { Image(systemName: "stop.fill").font(.system(size: 12)) }.buttonStyle(.plain).accessibilityLabel("Stop").disabled(model.playback.path.isEmpty)

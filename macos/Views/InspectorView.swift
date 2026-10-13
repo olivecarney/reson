@@ -1,13 +1,14 @@
 import SwiftUI
 struct InspectorView: View {
     let track: PlaybackSnapshot?
+    var artworkRevision: UInt64 = 0
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("TRACK DETAILS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                ZStack { RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.035)); Image(systemName: "waveform").font(.system(size: 48, weight: .ultraLight)).foregroundStyle(.secondary) }.frame(height: 190)
+                ArtworkView(path: track?.path ?? "", pixels: 384, revision: artworkRevision).frame(width: 210, height: 210)
                 if let track {
-                    VStack(alignment: .leading, spacing: 6) { Text(track.displayTitle).font(.system(size: 18, weight: .semibold)); Text(track.artist ?? "—").foregroundStyle(.secondary) }
+                    VStack(alignment: .leading, spacing: 6) { Text(track.displayTitle).font(.system(size: 18, weight: .semibold)).lineLimit(3).textSelection(.enabled); Text(track.artist ?? "Unknown artist").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2) }
                     Divider()
                     row("Album", track.album ?? "—")
                     row("Format", track.format)
@@ -26,5 +27,5 @@ struct InspectorView: View {
             }.padding(20)
         }.background(Color.white.opacity(0.02))
     }
-    private func row(_ label: String, _ value: String) -> some View { HStack(alignment: .top) { Text(label).foregroundStyle(.secondary); Spacer(); Text(value).multilineTextAlignment(.trailing) }.font(.system(size: 12)) }
+    private func row(_ label: String, _ value: String) -> some View { HStack(alignment: .top) { Text(label).foregroundStyle(.secondary); Spacer(); Text(value).multilineTextAlignment(.trailing).lineLimit(3).textSelection(.enabled) }.font(.system(size: 12)) }
 }

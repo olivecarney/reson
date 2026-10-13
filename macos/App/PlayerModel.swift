@@ -10,6 +10,7 @@ final class PlayerModel {
     var importBusy = false
     var importSummary = ""
     var libraryLoading = false
+    var artworkRevision: UInt64 = 0
     var selectedPath: String?
     var showSidebar = true
     var showInspector = false
@@ -157,6 +158,7 @@ final class PlayerModel {
                     importSummary = "\(summary.indexed) indexed · \(summary.failed) skipped" + (summary.cancelled ? " · Cancelled" : "")
                     if !status.busy {
                         if let error = summary.error { message = error }
+                        artworkRevision &+= 1
                         reloadLibrary(); return
                     }
                     try? await Task.sleep(for: .milliseconds(350))
@@ -171,6 +173,7 @@ final class PlayerModel {
         closing = true; refreshTask?.cancel(); libraryTask?.cancel(); importTask?.cancel()
         async let audio: Void = bridge.shutdown()
         async let database: Void = library.shutdown()
-        _ = await (audio, database)
+        async let artwork: Void = ArtworkCache.shared.shutdown()
+        _ = await (audio, database, artwork)
     }
 }

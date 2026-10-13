@@ -42,10 +42,34 @@ final class TrackTableTests: XCTestCase {
         let parent = TrackTable(tracks: [track("a", title: "A"), track("b", title: "B")], selection: .constant(nil), play: { _ in })
         let coordinator = parent.makeCoordinator(); let table = ReuseTable()
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("art"))
-        let first = coordinator.tableView(table, viewFor: column, row: 0) as! NSImageView
-        first.image = nil; first.contentTintColor = .red; table.recycled = first
-        let second = coordinator.tableView(table, viewFor: column, row: 1) as! NSImageView
-        XCTAssertTrue(first === second); XCTAssertNotNil(second.image); XCTAssertNotEqual(second.contentTintColor, .red)
+        let first = coordinator.tableView(table, viewFor: column, row: 0) as! ArtworkCell
+        first.artwork.image = nil; first.artwork.contentTintColor = .red; table.recycled = first
+        let second = coordinator.tableView(table, viewFor: column, row: 1) as! ArtworkCell
+        XCTAssertTrue(first === second); XCTAssertNotNil(second.artwork.image); XCTAssertNotEqual(second.artwork.contentTintColor, .red)
+    }
+    func testReusedArtworkCellRejectsPreviousTrackAndOnlyUpdatesImage() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let a = root.appendingPathComponent("a.flac"), b = root.appendingPathComponent("b.flac")
+        try ArtworkTests.flac(ArtworkTests.png(width: 300, height: 100)).write(to: a)
+        try ArtworkTests.flac(ArtworkTests.png(width: 100, height: 300)).write(to: b)
+        let cache = ArtworkCache(directory: root.appendingPathComponent("cache"))
+        let parent = TrackTable(tracks: [track(a.path, title: "A"), track(b.path, title: "B")], selection: .constant(nil), play: { _ in }, artworkCache: cache)
+        let coordinator = parent.makeCoordinator(); let table = ReuseTable()
+        let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("art"))
+        let first = coordinator.tableView(table, viewFor: column, row: 0) as! ArtworkCell
+        table.recycled = first
+        let second = coordinator.tableView(table, viewFor: column, row: 1) as! ArtworkCell
+        XCTAssertTrue(first === second)
+        for _ in 0..<200 {
+            if second.artwork.contentTintColor == nil { break }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTAssertEqual(second.representedPath, b.path)
+        XCTAssertEqual(second.artwork.image?.size, NSSize(width: 27, height: 80))
+        XCTAssertNil(second.artwork.contentTintColor)
+        await cache.shutdown()
     }
     final class CountingTable: NSTableView {
         var fullReloads = 0
@@ -77,6 +101,57 @@ final class TrackTableTests: XCTestCase {
         XCTAssertEqual(table.fullReloads, 2); XCTAssertEqual(table.selectedRow, 0)
     }
 
+    func testRescanRefreshesVisibleArtworkWithoutFullReload() {
+        let tracks = [track("a", title: "A"), track("b", title: "B")]
+        let parent = TrackTable(tracks: tracks, selection: .constant(nil), play: { _ in })
+        let coordinator = parent.makeCoordinator()
+        let table = CountingTable(frame: NSRect(x: 0, y: 0, width: 400, height: 144))
+        table.rowHeight = 48
+        table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("art")))
+        table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier("title")))
+        table.dataSource = coordinator; table.delegate = coordinator; coordinator.table = table
+        table.reloadData(); table.fullReloads = 0; table.updatedRows = []
+        coordinator.update(TrackTable(tracks: tracks, selection: .constant(nil), play: { _ in }, artworkRevision: 1))
+        XCTAssertEqual(table.fullReloads, 0); XCTAssertEqual(table.updatedRows, IndexSet(integersIn: 0..<2))
+    }
+    func testNativeArtworkScrollingIsLazyAndShowsCurrentImages() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let wide = root.appendingPathComponent("wide.flac"), tall = root.appendingPathComponent("tall.flac")
+        try ArtworkTests.flac(ArtworkTests.png(width: 300, height: 100)).write(to: wide)
+        try ArtworkTests.flac(ArtworkTests.png(width: 100, height: 300)).write(to: tall)
+        let directory = root.appendingPathComponent("cache")
+        let cache = ArtworkCache(directory: directory)
+        var tracks: [PlaybackSnapshot] = []
+        for i in 0..<1000 {
+            let url = root.appendingPathComponent("\(i).flac")
+            try FileManager.default.linkItem(at: i % 2 == 0 ? wide : tall, to: url)
+            tracks.append(track(url.path, title: "Track \(i)"))
+        }
+        let parent = TrackTable(tracks: tracks, selection: .constant(tracks[80].path), play: { _ in }, artworkCache: cache)
+        let coordinator = parent.makeCoordinator()
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 400, height: 144))
+        let table = NSTableView(frame: NSRect(x: 0, y: 0, width: 400, height: 48000))
+        table.rowHeight = 48
+        for id in ["art", "title"] { table.addTableColumn(NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))) }
+        table.dataSource = coordinator; table.delegate = coordinator; coordinator.table = table
+        scroll.documentView = table; table.reloadData(); coordinator.update(parent)
+        for row in [0, 800, 801, 999, 0] {
+            table.scrollRowToVisible(row); scroll.layoutSubtreeIfNeeded(); table.layoutSubtreeIfNeeded()
+            let cell = table.view(atColumn: 0, row: row, makeIfNecessary: true) as! ArtworkCell
+            for _ in 0..<200 {
+                if cell.artwork.contentTintColor == nil { break }
+                try await Task.sleep(for: .milliseconds(5))
+            }
+            XCTAssertEqual(cell.representedPath, tracks[row].path)
+            XCTAssertEqual(cell.artwork.image?.size, row % 2 == 0 ? NSSize(width: 80, height: 27) : NSSize(width: 27, height: 80))
+            XCTAssertEqual(table.selectedRow, 80)
+        }
+        await cache.shutdown()
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        XCTAssertLessThan(files.count, 40, "Invisible rows should not request thumbnails")
+    }
     func testNativeScrollingShowsCurrentRowContent() {
         let tracks = (0..<100).map { track("path-\($0)", title: "Track \($0)", artist: $0 % 2 == 0 ? "Artist \($0)" : nil) }
         let parent = TrackTable(tracks: tracks, selection: .constant("path-80"), play: { _ in })
