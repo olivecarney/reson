@@ -59,7 +59,10 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
             &hint,
             mss,
             &FormatOptions::default(),
-            &MetadataOptions::default(),
+            &MetadataOptions {
+                limit_visual_bytes: symphonia::core::meta::Limit::Maximum(0),
+                ..MetadataOptions::default()
+            },
         )
         .map_err(|e| EngineError::Decode(e.to_string()))?;
     let track = probed
