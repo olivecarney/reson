@@ -18,7 +18,7 @@ The library scanner already configures Symphonia to allocate zero visual bytes. 
 
 Repeated requests serialize and hit the memory/disk cache rather than duplicating the same extraction. Cancellation skips obsolete queued operations; already-running bounded work can finish. Application shutdown immediately closes admission, drains the artwork queue and releases its memory, alongside the existing audio/database shutdowns. No artwork timer or background scan remains active while idle.
 
-Stale keys become unreachable when source identity changes. There is no automatic disk eviction; obsolete files may accumulate until the OS/user clears this disposable cache. Filesystem stalls can still delay a running read or shutdown on that queue. There is no new filesystem watcher: manual rescan refreshes currently visible artwork and the inspector/transport; reopening/reselecting/reusing a view requests current source identity. A file modified externally without any of those events may remain displayed until refreshed.
+Stale keys become unreachable when source identity changes. v0.2.2 adds opportunistic disk maintenance: above 256 MiB of recognized cache files, prune oldest modification timestamps first towards 192 MiB, with a deterministic filename tie-breaker. Completed checks persist a 24-hour throttle. Automatic admission requires a subsequent thumbnail request at least five seconds after the first completed request; initialization never scans. Enumeration/deletion yield in batches on the existing utility queue. Descriptor-relative, nonrecursive, no-follow operations preserve unexpected entries and newly published/changed files. See [v0.2.2 validation and maintenance policy](validation-v0.2.2.md) for safety details, forced test entry points, benchmarks and limitations. Filesystem stalls can still delay a running read or shutdown on that queue. There is no new filesystem watcher: manual rescan refreshes currently visible artwork and the inspector/transport; reopening/reselecting/reusing a view requests current source identity. A file modified externally without any of those events may remain displayed until refreshed.
 
 ## Presentation
 
@@ -28,4 +28,4 @@ The AppKit table retains its 48-point rows, columns and native selection/keyboar
 
 ## Validation
 
-See [v0.2.1 validation](validation-v0.2.1.md) for automated, native and performance evidence. Existing v0.2 playback-output investigation remains authoritative for output notices/failures. Artwork errors neither enter the playback queue nor change library indexing outcomes.
+See [v0.2.1 validation](validation-v0.2.1.md) for original automated, native and performance evidence, and [v0.2.2 validation](validation-v0.2.2.md) for disk maintenance. Existing v0.2 playback-output investigation remains authoritative for output notices/failures. Artwork errors neither enter the playback queue nor change library indexing outcomes.
