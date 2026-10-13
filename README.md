@@ -4,9 +4,11 @@ A lightweight native macOS player for local lossless music.
 
 Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-**Status: v0.2 persistent library prototype.** Import FLAC/WAV folders, browse saved metadata, search and sort, and play tracks through the native interface.
+**Status: v0.2.1 artwork and interface polish.** Import FLAC/WAV folders, browse persistent metadata and embedded artwork, search and sort, and play tracks through the native interface.
 
 v0.2 adds a background Rust library worker using macOS system SQLite through `rusqlite`, without bundled SQLite. See the [library design](docs/library-v0.2.md), [validation and measurements](docs/validation-v0.2.md), and [database decision](docs/spikes/system-sqlite.md).
+
+v0.2.1 adds lazy embedded FLAC/WAV artwork, native ImageIO thumbnails and a bounded memory cache backed by `~/Library/Caches/Reson/Artwork/`. See the [artwork architecture](docs/artwork-v0.2.1.md) and [validation results](docs/validation-v0.2.1.md). Selection and playback artwork stay independent. Manual rescan refreshes changed sources; artwork is never fetched online.
 
 ## What works
 
@@ -133,7 +135,7 @@ This plays a synthetic tone on the default output device. It verifies engine beh
 
 ## Next milestones
 
-1. Artwork caching and further native interface polish (v0.2.1).
+1. Continue library organization and native interface refinements.
 2. Persistent playlists, ordering, a separate queue and M3U8 import/export.
 3. Seeking, output-device selection, gapless playback and audio-path verification.
 

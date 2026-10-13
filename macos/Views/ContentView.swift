@@ -8,17 +8,12 @@ struct ContentView: View {
             HStack(spacing: 0) {
                 if model.showSidebar { sidebar.frame(width: 180); Divider() }
                 VStack(spacing: 0) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("All Tracks").font(.system(size: 24, weight: .semibold))
-                            Text(model.tracks.isEmpty ? "Your music, close at hand." : "\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks") in your library")
-                                .font(.system(size: 12)).foregroundStyle(.secondary)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 16) { libraryHeading; Spacer(); libraryActions }
+                        VStack(alignment: .leading, spacing: 16) {
+                            libraryHeading
+                            libraryActions
                         }
-                        Spacer()
-                        TextField("Search library", text: $model.search).textFieldStyle(.roundedBorder).frame(width: 180)
-                        Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
-                        Button { model.openFile() } label: { Label("Open File", systemImage: "plus") }
-                        Button { model.showInspector.toggle() } label: { Image(systemName: "sidebar.right") }.help("Toggle inspector")
                     }.padding(24)
                     Divider()
                     if model.importBusy || !model.importSummary.isEmpty {
@@ -35,10 +30,11 @@ struct ContentView: View {
                             Image(systemName: "waveform").font(.system(size: 44, weight: .ultraLight)).foregroundStyle(Color.accentColor.opacity(0.65))
                             Text(model.search.isEmpty ? "A little space for your music." : "No matching tracks.").font(.system(size: 20, weight: .medium))
                             Text(model.search.isEmpty ? "Import a folder of FLAC or WAV files to begin." : "Try another title, artist, album, genre or filename.").foregroundStyle(.secondary)
-                            Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
+                            if model.search.isEmpty { Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy) }
+                            else { Button("Clear search") { model.search = "" } }
                         }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        TrackTable(tracks: model.tracks, selection: $model.selectedPath, play: model.load, sort: model.sortLibrary)
+                        TrackTable(tracks: model.tracks, selection: $model.selectedPath, play: model.load, sort: model.sortLibrary, artworkRevision: model.artworkRevision)
                     }
                     HStack {
                         Circle().fill(model.playback.state == 2 ? Color.accentColor : Color.secondary.opacity(0.5)).frame(width: 5, height: 5)
@@ -47,7 +43,7 @@ struct ContentView: View {
                         Text("FLAC · WAV").font(.system(size: 10, design: .monospaced))
                     }.foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 10)
                 }.background(Color(red: 0.085, green: 0.09, blue: 0.105))
-                if model.showInspector { Divider(); InspectorView(track: model.selected).frame(width: 250) }
+                if model.showInspector { Divider(); InspectorView(track: model.selected, artworkRevision: model.artworkRevision).frame(width: 250) }
             }
             if let error = model.message ?? model.playback.error ?? model.playback.outputNotice {
                 HStack { Image(systemName: "exclamationmark.circle"); Text(error).font(.system(size: 12)); Spacer(); Button("Open File…") { model.openFile() } }
@@ -58,6 +54,24 @@ struct ContentView: View {
         }.tint(Color(red: 0.62, green: 0.76, blue: 0.69))
         .toolbar {
             ToolbarItem(placement: .navigation) { Button { model.showSidebar.toggle() } label: { Image(systemName: "sidebar.left") }.help("Toggle sidebar") }
+        }
+    }
+    private var libraryHeading: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("All Tracks").font(.system(size: 24, weight: .semibold))
+            Text(model.tracks.isEmpty ? "Your music, close at hand." : "\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks") in your library")
+                .font(.system(size: 12)).foregroundStyle(.secondary)
+        }
+    }
+    private var libraryActions: some View {
+        HStack(spacing: 8) {
+            TextField("Search library", text: $model.search).accessibilityLabel("Search library")
+                .textFieldStyle(.roundedBorder).frame(minWidth: 100, idealWidth: 180, maxWidth: 180)
+            Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
+            Button { model.openFile() } label: { Image(systemName: "plus") }
+                .accessibilityLabel("Open File").help("Open File (⌘O)")
+            Button { model.showInspector.toggle() } label: { Image(systemName: "sidebar.right") }
+                .accessibilityLabel("Toggle inspector").help("Toggle inspector")
         }
     }
     private var sidebar: some View {
@@ -76,7 +90,7 @@ struct ContentView: View {
             Text("PLAYLISTS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 30)
             Text("Coming later").font(.system(size: 12)).foregroundStyle(.tertiary).padding(.horizontal, 20).padding(.top, 12)
             Spacer()
-            Text("LOCAL MUSIC · v0.2.0").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
+            Text("LOCAL MUSIC · v0.2.1").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
         }.frame(maxHeight: .infinity).background(.ultraThinMaterial)
     }
 }

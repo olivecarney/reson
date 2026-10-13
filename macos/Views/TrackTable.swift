@@ -6,6 +6,8 @@ struct TrackTable: NSViewRepresentable {
     @Binding var selection: String?
     let play: (String) -> Void
     var sort: (String, Bool) -> Void = { _, _ in }
+    var artworkCache: ArtworkCache = .shared
+    var artworkRevision: UInt64 = 0
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView(); let table = NSTableView()
@@ -14,7 +16,8 @@ struct TrackTable: NSViewRepresentable {
         table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
         for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",64)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
-            column.title = title; column.width = width; column.minWidth = id == "title" ? 120 : 32
+            column.title = title; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : 32)
+            if id == "art" { column.maxWidth = 36; column.resizingMask = [] }
             if id != "art" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
         }
@@ -35,6 +38,7 @@ struct TrackTable: NSViewRepresentable {
         private var updating = false
         func update(_ next: TrackTable) {
             let old = parent.tracks
+            let refreshArtwork = parent.artworkRevision != next.artworkRevision
             let selection = next.selection
             parent = next
             guard let table else { return }
@@ -48,6 +52,15 @@ struct TrackTable: NSViewRepresentable {
                 for row in old.indices where old[row].tableContent != next.tracks[row].tableContent { changed.insert(row) }
                 if !changed.isEmpty { table.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integersIn: 0..<table.numberOfColumns)) }
             }
+            if refreshArtwork, let column = table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "art" }) {
+                let visible = table.rows(in: table.visibleRect)
+                if visible.location != NSNotFound, visible.length > 0 {
+                    let end = min(visible.location + visible.length, next.tracks.count)
+                    if visible.location < end {
+                        table.reloadData(forRowIndexes: IndexSet(integersIn: visible.location..<end), columnIndexes: IndexSet(integer: column))
+                    }
+                }
+            }
             if let index = next.tracks.firstIndex(where: { $0.path == selection }), table.selectedRow != index {
                 table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
             }
@@ -57,11 +70,10 @@ struct TrackTable: NSViewRepresentable {
             let track = parent.tracks[row]; let id = tableColumn?.identifier.rawValue ?? ""
             let identifier = NSUserInterfaceItemIdentifier(id)
             if id == "art" {
-                let image = tableView.makeView(withIdentifier: identifier, owner: self) as? NSImageView ?? NSImageView()
-                image.identifier = identifier
-                image.image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "Audio file")
-                image.contentTintColor = NSColor(calibratedRed: 0.62, green: 0.76, blue: 0.69, alpha: 0.6)
-                return image
+                let cell = tableView.makeView(withIdentifier: identifier, owner: self) as? ArtworkCell ?? ArtworkCell()
+                cell.identifier = identifier
+                cell.configure(path: track.path, cache: parent.artworkCache)
+                return cell
             }
             let cell: NSTableCellView
             if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView,
