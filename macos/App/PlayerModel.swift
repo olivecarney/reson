@@ -20,6 +20,7 @@ final class PlayerModel {
     init(databaseURL: URL? = nil) { library=LibraryBridge(databaseURL:databaseURL) }
     var playlists: [PlaylistRecord] = []
     private(set) var selectedPlaylistID: Int64?
+    var tableRevision: UInt64 = 0
     private(set) var playlistRevision: Int64 = 0
     var playlistBusy = false
     var showQueue = false
@@ -34,7 +35,7 @@ final class PlayerModel {
     var queueTracks: [PlaybackSnapshot] { session.queue.map(\.row) }
     func selectPlaylist(_ id: Int64?) {
         guard !closing else { return }
-        selectedPlaylistID=id; selectedPath=nil; search=""; savedTracks=[]; tracks=[]; reloadLibrary()
+        selectedPlaylistID=id; selectedPath=nil; search=""; savedTracks=[]; tracks=[]; tableRevision &+= 1; reloadLibrary()
     }
     func refreshPlaylists() async throws {
         let reply: PlaylistList = try await library.request(["op":"playlists"])
@@ -59,6 +60,26 @@ final class PlayerModel {
             if !closing {reloadLibrary()}
             return !closing
         } catch {if !closing {message=error.localizedDescription; reloadLibrary()}; return false}
+    }
+    func importPlaylist(path:String,name:String) async {
+        guard !closing,!playlistBusy else {return}
+        playlistBusy=true; defer {playlistBusy=false}
+        do {
+            let reply:PlaylistCreated=try await library.request(["op":"m3u8_import","path":path,"name":name])
+            try await refreshPlaylists()
+            guard !closing else {return}
+            selectPlaylist(reply.playlist.id)
+            message="Imported playlist. Unindexed paths remain unavailable until their folder is imported." + ((reply.skipped ?? 0)>0 ? " \(reply.skipped!) unsupported entries skipped." : "")
+        } catch {if !closing {message=error.localizedDescription}}
+    }
+    func insertTrackIDs(_ ids:[Int64],to id:Int64,position:Int?=nil) {
+        var request:[String:Any] = ["op":"playlist_add","playlist_id":id,"ids":ids]
+        if let position {request["position"]=position;request["revision"]=playlistRevision}
+        Task {await mutatePlaylist(request)}
+    }
+    func playQueued(_ identity:String) {
+        guard let entry=session.queue.first(where:{$0.row.rowID==identity}) else {return}
+        _=session.moveQueue(ids:[entry.id],to:0); nextTrack()
     }
     func addTracks(_ rows: [PlaybackSnapshot], to id: Int64, position: Int? = nil) {
         let ids=rows.compactMap(\.libraryID)
@@ -196,10 +217,10 @@ final class PlayerModel {
         reloadLibrary()
     }
     private func updateTracks() {
-        if selectedPlaylistID != nil {tracks=savedTracks; return}
+        if selectedPlaylistID != nil {tracks=savedTracks; tableRevision &+= 1; return}
         let savedPaths = Set(savedTracks.map(\.path))
         let extra = sessionTracks.filter { !savedPaths.contains($0.path) && (search.isEmpty || [$0.title, $0.artist ?? "", $0.album ?? "", $0.path].contains { $0.localizedCaseInsensitiveContains(search) }) }
-        tracks = savedTracks + extra
+        tracks = savedTracks + extra; tableRevision &+= 1
     }
     func sortLibrary(column: String, ascending: Bool) {
         guard selectedPlaylistID==nil else {return}

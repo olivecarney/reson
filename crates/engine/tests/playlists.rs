@@ -174,3 +174,66 @@ fn worker_append_uses_current_count_and_rejects_stale_edits() {
         .unwrap()["error"]
         .is_string());
 }
+
+#[test]
+fn failed_sql_write_rolls_back_partial_reorder_and_playlist_entries_survive_rescan() {
+    let d = tempfile::tempdir().unwrap();
+    let db = d.path().join("db");
+    let music = d.path().join("music");
+    std::fs::create_dir(&music).unwrap();
+    let file = music.join("a.wav");
+    std::fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/pcm16-44100-1.wav"),
+        &file,
+    )
+    .unwrap();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let mut s = LibraryStore::open(&db).unwrap();
+    s.scan(&music, &cancel, |_| {}).unwrap();
+    let t = s.query("", Sort::Title, false, 0, 500).unwrap()[0].id;
+    let p = s.create_playlist("Rescan").unwrap();
+    s.add_playlist_tracks(p.id, &[t, t, t], 0).unwrap();
+    let before = s
+        .playlist_entries(p.id, 0, 500)
+        .unwrap()
+        .iter()
+        .map(|e| e.id)
+        .collect::<Vec<_>>();
+    drop(s);
+    let c = rusqlite::Connection::open(&db).unwrap();
+    c.execute_batch(&format!("CREATE TRIGGER reject_reorder BEFORE UPDATE OF position ON playlist_entries WHEN OLD.id={} BEGIN SELECT RAISE(ABORT,'injected failed write'); END;",before[0])).unwrap();
+    drop(c);
+    let mut s = LibraryStore::open(&db).unwrap();
+    assert!(s.move_playlist_entries(p.id, &[before[0]], 3).is_err());
+    assert_eq!(
+        s.playlist_entries(p.id, 0, 500)
+            .unwrap()
+            .iter()
+            .map(|e| e.id)
+            .collect::<Vec<_>>(),
+        before
+    );
+    drop(s);
+    let c = rusqlite::Connection::open(&db).unwrap();
+    c.execute_batch("DROP TRIGGER reject_reorder").unwrap();
+    drop(c);
+    std::fs::remove_file(&file).unwrap();
+    let mut s = LibraryStore::open(&db).unwrap();
+    s.scan(&music, &cancel, |_| {}).unwrap();
+    assert!(s
+        .playlist_entries(p.id, 0, 500)
+        .unwrap()
+        .iter()
+        .all(|e| e.track.missing));
+    std::fs::copy(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/pcm16-44100-1.wav"),
+        &file,
+    )
+    .unwrap();
+    s.scan(&music, &cancel, |_| {}).unwrap();
+    let restored = s.playlist_entries(p.id, 0, 500).unwrap();
+    assert!(restored.iter().all(|e| !e.track.missing && e.track.id == t));
+    assert_eq!(restored.iter().map(|e| e.id).collect::<Vec<_>>(), before);
+}
