@@ -20,7 +20,7 @@ Malformed/unsupported/unreadable files are skipped. Counts and the latest failur
 
 ## Native interface
 
-Import Folder (Shift-Command-O), search, native sortable headers, rescan (File menu or completed-import bar), cancellation and missing indicators extend the existing AppKit table. Selection remains separate from playback. The inspector shows genre and tagged BPM/key. Search includes title, artist, album, genre and path/filename. Sorting supports title, artist, album, BPM, key, duration and format with stable ID ties. Individual Open File (Command-O) still plays directly; those unimported session entries are not persisted and appear after saved query results. Artwork, playlists, seeking, gapless playback and device selection remain deferred.
+Import Folder (Shift-Command-O), search, native sortable headers, rescan (File menu or completed-import bar), cancellation and missing indicators extend the existing AppKit table. Selection remains separate from playback. The inspector shows genre and tagged BPM/key. Search includes title, artist, album, genre and path/filename. Sorting supports title, artist, album, BPM, key, duration and format with stable ID ties. Individual Open File (Command-O) still plays directly; those unimported session entries are not persisted and appear after saved query results. v0.2.1 adds lazy native artwork without changing schema or worker ownership; see [artwork architecture](artwork-v0.2.1.md). Playlists, seeking, gapless playback and device selection remain deferred.
 
 ## Reproduction
 
