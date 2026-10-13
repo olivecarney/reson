@@ -60,8 +60,12 @@ final class ArtworkCache: @unchecked Sendable {
         if let bytes = boundedRead(absent, limit: 16), bytes == Data("no-art-v1".utf8) {
             remember(nil, key: key); return nil
         }
-        let bytes = extract(url)
-        let image = bytes.flatMap { decode($0, pixels: pixels) }
+        // An inspector request may precede the table/transport (e.g. Open File).
+        // Derive the smaller image from its cached thumbnail without re-reading
+        // embedded metadata. Invalid larger cache data falls back to the source.
+        let larger = directory.appendingPathComponent(identity + "-384.png")
+        let reused = pixels == 80 ? boundedRead(larger, limit: 1024 * 1024).flatMap { decode($0, pixels: pixels) } : nil
+        let image = reused ?? extract(url).flatMap { decode($0, pixels: pixels) }
         // A replacement/rescan during extraction must not cache an old image.
         guard identity == self.identity(url), !lifecycle.cancelled else { return nil }
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -86,8 +86,8 @@ enum EmbeddedArtwork {
             guard header[8] == 0, header[9] == 0, header.prefix(4) == Data("APIC".utf8) else { continue }
             var picture = Cursor(payload)
             guard let encoding = picture.take(1)?.first, encoding <= 3,
-                  picture.terminated(unit: 1), let type = picture.take(1)?.first,
-                  picture.terminated(unit: encoding == 1 || encoding == 2 ? 2 : 1),
+                  picture.terminated(unit: 1, limit: 1024), let type = picture.take(1)?.first,
+                  picture.terminated(unit: encoding == 1 || encoding == 2 ? 2 : 1, limit: 65536),
                   let image = picture.take(payload.count - picture.offset), !image.isEmpty,
                   image.count <= maximumBytes else { continue }
             if type == 3 { return image }
@@ -122,8 +122,13 @@ enum EmbeddedArtwork {
         }
         mutating func number() -> Int? { take(4)?.integer() }
         mutating func skip(_ count: Int) -> Bool { take(count) != nil }
-        mutating func terminated(unit: Int) -> Bool {
-            while let bytes = take(unit) { if bytes.allSatisfy({ $0 == 0 }) { return true } }
+        mutating func terminated(unit: Int, limit: Int) -> Bool {
+            let end = offset + min(limit, data.count - offset)
+            while offset + unit <= end {
+                let zero = data[offset] == 0 && (unit == 1 || data[offset + 1] == 0)
+                offset += unit
+                if zero { return true }
+            }
             return false
         }
     }

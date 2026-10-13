@@ -87,6 +87,60 @@ final class ArtworkTests: XCTestCase {
         let closed = await cache.thumbnail(path: url.path)
         XCTAssertNil(closed)
     }
+    func testMemoryEvictsOldThumbnailsAndCancelledRequestsDoNotExtract() async throws {
+        let source = try write(Self.flac(Self.png()))
+        let directory = root.appendingPathComponent("cache")
+        var extractions = 0 // Accessed on the serial cache queue only.
+        let cache = ArtworkCache(directory: directory, extract: { url in extractions += 1; return EmbeddedArtwork.read(url) })
+        var paths: [String] = []
+        for i in 0..<150 {
+            let url = root.appendingPathComponent("\(i).flac")
+            try FileManager.default.linkItem(at: source, to: url); paths.append(url.path)
+        }
+        for path in paths { _ = await cache.thumbnail(path: path) }
+        // Removing disk entries exposes whether the oldest image was evicted.
+        for file in try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) { try FileManager.default.removeItem(at: file) }
+        let oldest = await cache.thumbnail(path: paths[0])
+        XCTAssertEqual(oldest?.width, 80)
+        await cache.shutdown()
+        XCTAssertEqual(extractions, 151)
+        var cancelledExtractions = 0
+        let cancelledCache = ArtworkCache(directory: root.appendingPathComponent("cancelled"), extract: { url in cancelledExtractions += 1; return EmbeddedArtwork.read(url) })
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return await cancelledCache.thumbnail(path: source.path)
+        }
+        let result = await task.value
+        XCTAssertNil(result)
+        await cancelledCache.shutdown(); XCTAssertEqual(cancelledExtractions, 0)
+    }
+    func testWAVV24AndSparseAudioSkipAndRejectUnsupportedFlags() throws {
+        var wav = Self.wav(Data([10, 20]))
+        wav[23] = 4 // ID3 version (RIFF header + chunk header + three bytes).
+        XCTAssertEqual(EmbeddedArtwork.read(try write(wav, "v24.wav")), Data([10, 20]))
+        wav[25] = 128 // Unsynchronisation requires a different parser; clean absence.
+        XCTAssertNil(EmbeddedArtwork.read(try write(wav, "flags.wav")))
+        let url = try write(Data("RIFF".utf8) + Self.le(100_000_000 + 4 + 8) + Data("WAVEdata".utf8) + Self.le(100_000_000), "sparse.wav")
+        let file = try FileHandle(forWritingTo: url)
+        try file.truncate(atOffset: 100_000_020); try file.close()
+        XCTAssertNil(EmbeddedArtwork.read(url))
+    }
+    func testWAVRejectsExcessiveDescription() throws {
+        let description = Data(repeating: 65, count: 70_000) + Data([0])
+        XCTAssertNil(EmbeddedArtwork.read(try write(Self.wav(Data([1, 2]), customDescription: description), "long-description.wav")))
+    }
+    func testTableThumbnailReusesExistingInspectorImageWithoutMetadataRead() async throws {
+        let url = try write(Self.flac(Self.png()))
+        let directory = root.appendingPathComponent("cache")
+        let first = ArtworkCache(directory: directory)
+        let large = await first.thumbnail(path: url.path, pixels: 384)
+        XCTAssertEqual(large?.width, 300)
+        await first.shutdown()
+        let reopened = ArtworkCache(directory: directory, extract: { _ in XCTFail("Existing inspector thumbnail should supply the table image"); return nil })
+        let small = await reopened.thumbnail(path: url.path)
+        XCTAssertEqual(small?.width, 80); XCTAssertEqual(small?.height, 53)
+        await reopened.shutdown()
+    }
     static func be(_ n: Int) -> Data { Data((0..<4).reversed().map { UInt8(truncatingIfNeeded: n >> ($0 * 8)) }) }
     static func le(_ n: Int) -> Data { Data((0..<4).map { UInt8(truncatingIfNeeded: n >> ($0 * 8)) }) }
     static func flac(_ image: Data) -> Data {
@@ -94,8 +148,8 @@ final class ArtworkTests: XCTestCase {
         block += be(300) + be(200) + be(24) + be(0) + be(image.count) + image
         return Data("fLaC".utf8) + Data([134]) + be(block.count).suffix(3) + block
     }
-    static func wav(_ image: Data, encoding: UInt8 = 0) -> Data {
-        let description = encoding == 1 || encoding == 2 ? Data([0, 0]) : Data([0])
+    static func wav(_ image: Data, encoding: UInt8 = 0, customDescription: Data? = nil) -> Data {
+        let description = customDescription ?? (encoding == 1 || encoding == 2 ? Data([0, 0]) : Data([0]))
         let apic = Data([encoding]) + Data("image/png\0".utf8) + Data([3]) + description + image
         let frame = Data("APIC".utf8) + be(apic.count) + Data([0, 0]) + apic
         let size = Data([UInt8((frame.count >> 21) & 127), UInt8((frame.count >> 14) & 127), UInt8((frame.count >> 7) & 127), UInt8(frame.count & 127)])
