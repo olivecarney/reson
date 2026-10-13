@@ -2,6 +2,11 @@ import Foundation
 import CReson
 
 struct PlaybackSnapshot: Equatable {
+    var libraryID: Int64?
+    var genre: String?
+    var bpm: Double?
+    var key: String?
+    var missing = false
     var generation: UInt64 = 0
     var acknowledged: UInt64 = 0
     var state: UInt32 = 0

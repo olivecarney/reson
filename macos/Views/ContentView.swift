@@ -11,23 +11,34 @@ struct ContentView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("All Tracks").font(.system(size: 24, weight: .semibold))
-                            Text(model.tracks.isEmpty ? "Your music, close at hand." : "\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks") in this session")
+                            Text(model.tracks.isEmpty ? "Your music, close at hand." : "\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks") in your library")
                                 .font(.system(size: 12)).foregroundStyle(.secondary)
                         }
                         Spacer()
+                        TextField("Search library", text: $model.search).textFieldStyle(.roundedBorder).frame(width: 180)
+                        Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
                         Button { model.openFile() } label: { Label("Open File", systemImage: "plus") }
                         Button { model.showInspector.toggle() } label: { Image(systemName: "sidebar.right") }.help("Toggle inspector")
                     }.padding(24)
                     Divider()
+                    if model.importBusy || !model.importSummary.isEmpty {
+                        HStack {
+                            if model.importBusy { ProgressView().controlSize(.small) }
+                            Text(model.importSummary.isEmpty ? "Indexing folder…" : model.importSummary).font(.system(size: 12))
+                            Spacer()
+                            if model.importBusy { Button("Cancel") { model.cancelImport() } }
+                            else { Button("Rescan") { model.rescanFolders() } }
+                        }.padding(.horizontal, 24).padding(.vertical, 8)
+                    }
                     if model.tracks.isEmpty {
                         VStack(spacing: 16) {
                             Image(systemName: "waveform").font(.system(size: 44, weight: .ultraLight)).foregroundStyle(Color.accentColor.opacity(0.65))
-                            Text("A little space for your music.").font(.system(size: 20, weight: .medium))
-                            Text("Open a FLAC or WAV file to begin.").foregroundStyle(.secondary)
-                            Button("Choose a File…") { model.openFile() }.keyboardShortcut("o", modifiers: .command)
+                            Text(model.search.isEmpty ? "A little space for your music." : "No matching tracks.").font(.system(size: 20, weight: .medium))
+                            Text(model.search.isEmpty ? "Import a folder of FLAC or WAV files to begin." : "Try another title, artist, album, genre or filename.").foregroundStyle(.secondary)
+                            Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
                         }.frame(maxWidth: .infinity, maxHeight: .infinity)
                     } else {
-                        TrackTable(tracks: model.tracks, selection: $model.selectedPath, play: model.load)
+                        TrackTable(tracks: model.tracks, selection: $model.selectedPath, play: model.load, sort: model.sortLibrary)
                     }
                     HStack {
                         Circle().fill(model.playback.state == 2 ? Color.accentColor : Color.secondary.opacity(0.5)).frame(width: 5, height: 5)
@@ -65,7 +76,7 @@ struct ContentView: View {
             Text("PLAYLISTS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 30)
             Text("Coming later").font(.system(size: 12)).foregroundStyle(.tertiary).padding(.horizontal, 20).padding(.top, 12)
             Spacer()
-            Text("LOCAL MUSIC · v0.1.1").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
+            Text("LOCAL MUSIC · v0.2.0").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
         }.frame(maxHeight: .infinity).background(.ultraThinMaterial)
     }
 }

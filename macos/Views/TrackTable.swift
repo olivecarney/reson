@@ -5,6 +5,7 @@ struct TrackTable: NSViewRepresentable {
     let tracks: [PlaybackSnapshot]
     @Binding var selection: String?
     let play: (String) -> Void
+    var sort: (String, Bool) -> Void = { _, _ in }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView(); let table = NSTableView()
@@ -14,6 +15,7 @@ struct TrackTable: NSViewRepresentable {
         for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",64)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             column.title = title; column.width = width; column.minWidth = id == "title" ? 120 : 32
+            if id != "art" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
         }
         table.delegate = context.coordinator; table.dataSource = context.coordinator
@@ -74,11 +76,16 @@ struct TrackTable: NSViewRepresentable {
                 cell.textField = label
             }
             let label = cell.textField!
-            switch id { case "title": label.stringValue = track.displayTitle; case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
+            switch id { case "title": label.stringValue = track.displayTitle + (track.missing ? " · Missing" : ""); case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "bpm": label.stringValue = track.bpm.map { String(format: "%g", $0) } ?? "—"; case "key": label.stringValue = track.key ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
             label.font = .systemFont(ofSize: 12, weight: id == "title" ? .medium : .regular)
             label.textColor = id == "title" ? .labelColor : .secondaryLabelColor
+            if track.missing { label.textColor = .tertiaryLabelColor }
             label.lineBreakMode = .byTruncatingTail
             return cell
+        }
+        func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+            guard let descriptor = tableView.sortDescriptors.first, let key = descriptor.key else { return }
+            parent.sort(key, descriptor.ascending)
         }
         func tableViewSelectionDidChange(_ notification: Notification) {
             guard !updating, let table, parent.tracks.indices.contains(table.selectedRow) else { return }
@@ -98,7 +105,7 @@ func timeLabel(_ seconds: Double) -> String {
 
 // Compare only values actually displayed by the table, not transport or inspector state.
 private extension PlaybackSnapshot {
-    var tableContent: (String, String, String, String, String) {
-        (displayTitle, artist ?? "—", album ?? "—", format, timeLabel(duration))
+    var tableContent: [String] {
+        [displayTitle, artist ?? "—", album ?? "—", format, timeLabel(duration), bpm.map { String(format: "%g", $0) } ?? "—", key ?? "—", String(missing)]
     }
 }
