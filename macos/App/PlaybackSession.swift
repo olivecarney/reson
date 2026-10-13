@@ -17,11 +17,12 @@ struct PlaybackSession {
     private(set) var current: PlaybackSnapshot?
     private(set) var queue: [QueueEntry] = []
     private(set) var label = ""
+    var needsBeginConfirmation: Bool { !recorded }
     var canNext: Bool { !queue.isEmpty || historyIndex+1 < history.count || cursor+1 < sequence.count }
     var canPrevious: Bool { historyIndex > 0 }
     mutating func start(_ tracks: [PlaybackSnapshot], at index: Int, label: String) -> PlaybackSnapshot? {
         guard tracks.indices.contains(index) else { return nil }
-        discardPending()
+        pendingQueue=nil
         sequence=tracks; cursor=index; history=[]; historyIndex = -1; self.label=label
         current=tracks[index]; recorded=false; replaying=false
         return current
@@ -60,7 +61,7 @@ struct PlaybackSession {
     }
     mutating func previous() -> PlaybackSnapshot? {
         guard canPrevious else {return nil}
-        discardPending(); historyIndex-=1; current=history[historyIndex]; replaying=true; recorded=false
+        pendingQueue=nil; historyIndex-=1; current=history[historyIndex]; replaying=true; recorded=false
         return current
     }
     // Queue entries are consumed only after the engine reports Playing.

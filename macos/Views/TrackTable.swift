@@ -92,7 +92,15 @@ struct TrackTable: NSViewRepresentable {
             } else if let index=next.tracks.firstIndex(where:{$0.rowID==selection}) {indexes=IndexSet(integer:index)}
             else {indexes=[]}
             if table.selectedRowIndexes != indexes {table.selectRowIndexes(indexes,byExtendingSelection:false)}
-            for column in table.tableColumns where column.identifier.rawValue != "art" {
+            if let selection, !next.tracks.contains(where:{$0.rowID==selection}) {
+                let replacement=indexes.first.map {next.tracks[$0].rowID}
+                let source=next.sourceID
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.parent.sourceID==source, self.parent.selection==selection else {return}
+                    self.parent.selection=replacement
+                }
+            }
+            for column in table.tableColumns where sourceChanged && column.identifier.rawValue != "art" {
                 column.sortDescriptorPrototype=next.sourceID=="library" ? NSSortDescriptor(key:column.identifier.rawValue,ascending:true) : nil
             }
         }

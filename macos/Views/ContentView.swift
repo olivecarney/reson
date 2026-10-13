@@ -50,6 +50,9 @@ struct ContentView: View {
                 }.background(Color(red: 0.085, green: 0.09, blue: 0.105))
                 if model.showInspector { Divider(); InspectorView(track: model.selected, artworkRevision: model.artworkRevision).frame(width: 250) }
             }
+            if let notice=model.notice {
+                HStack {Image(systemName:"info.circle");Text(notice).font(.system(size:12));Spacer();Button("Dismiss") {model.notice=nil}}.padding(12).foregroundStyle(.secondary)
+            }
             if let error = model.message ?? model.playback.error ?? model.playback.outputNotice {
                 HStack { Image(systemName: "exclamationmark.circle"); Text(error).font(.system(size: 12)); Spacer(); Button("Open File…") { model.openFile() } }
                     .padding(12).background(Color.orange.opacity(0.12)).foregroundStyle(.orange)
@@ -74,7 +77,7 @@ struct ContentView: View {
     }
     private var libraryHeading: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(model.listTitle).font(.system(size: 24, weight: .semibold))
+            Text(model.listTitle).font(.system(size: 24, weight: .semibold)).lineLimit(1)
             Text(model.tracks.isEmpty ? "Your music, close at hand." : "\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks")")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }

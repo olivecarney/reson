@@ -51,12 +51,12 @@ struct ResonApp: App {
             CommandMenu("Playback") {
                 Button(model.playback.state == 2 ? "Pause" : "Play") { model.togglePlayback() }.disabled(model.playback.path.isEmpty)
                 Button("Stop") { model.stop() }.disabled(model.playback.path.isEmpty)
-                Button("Next Track") {model.nextTrack()}.keyboardShortcut(.rightArrow,modifiers:.command).disabled(!model.canNext)
-                Button("Previous Track") {model.previousTrack()}.keyboardShortcut(.leftArrow,modifiers:.command).disabled(!model.canPrevious)
+                Button("Next Track") {model.nextTrack()}.keyboardShortcut("n",modifiers:[.command,.option]).disabled(!model.canNext)
+                Button("Previous Track") {model.previousTrack()}.keyboardShortcut("p",modifiers:[.command,.option]).disabled(!model.canPrevious)
                 Divider()
                 Button("Play Next") {if let track=model.selected {model.enqueue([track],next:true)}}.disabled(model.selected==nil)
                 Button("Add to Queue") {if let track=model.selected {model.enqueue([track],next:false)}}.disabled(model.selected==nil)
-                Button("Show Queue") {model.showQueue=true}.keyboardShortcut("q",modifiers:[.command,.shift])
+                Button("Show Queue") {model.showQueue=true}.keyboardShortcut("j")
             }
             CommandGroup(after: .sidebar) {
                 Button("Toggle Sidebar") { model.showSidebar.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])

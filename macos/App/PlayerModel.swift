@@ -15,6 +15,7 @@ final class PlayerModel {
     var showSidebar = true
     var showInspector = false
     var message: String?
+    var notice: String?
     private let bridge = EngineBridge()
     private let library: LibraryBridge
     init(databaseURL: URL? = nil) { library=LibraryBridge(databaseURL:databaseURL) }
@@ -31,7 +32,7 @@ final class PlayerModel {
     var listTitle: String { selectedPlaylistID.flatMap { id in playlists.first { $0.id==id }?.name } ?? "All Tracks" }
     var canNext: Bool { session.canNext && !closing }
     var canPrevious: Bool { session.canPrevious && !closing }
-    var playingRowID: String? { session.current?.rowID }
+    var playingRowID: String? { selectedPlaylistID==nil ? session.current?.path : session.current?.rowID }
     var queueTracks: [PlaybackSnapshot] { session.queue.map(\.row) }
     func selectPlaylist(_ id: Int64?) {
         guard !closing else { return }
@@ -45,7 +46,7 @@ final class PlayerModel {
     }
     func createPlaylist(name: String) async -> Int64? {
         guard !closing, !playlistBusy else {return nil}
-        playlistBusy=true; defer {playlistBusy=false}
+        playlistBusy=true; message=nil; defer {playlistBusy=false}
         do {
             let reply: PlaylistCreated = try await library.request(["op":"playlist_create","name":name])
             try await refreshPlaylists(); return closing ? nil : reply.playlist.id
@@ -53,23 +54,24 @@ final class PlayerModel {
     }
     @discardableResult func mutatePlaylist(_ request: [String: Any]) async -> Bool {
         guard !closing, !playlistBusy else {return false}
-        playlistBusy=true; defer {playlistBusy=false}
+        playlistBusy=true; message=nil; defer {playlistBusy=false}
         do {
             let _: LibraryReply = try await library.request(request)
             try await refreshPlaylists()
-            if !closing {reloadLibrary()}
+            let op=request["op"] as? String ?? ""
+            if !closing, ["playlist_add","playlist_remove","playlist_move"].contains(op), request["playlist_id"] as? Int64 == selectedPlaylistID {reloadLibrary()}
             return !closing
-        } catch {if !closing {message=error.localizedDescription; reloadLibrary()}; return false}
+        } catch {if !closing {message=error.localizedDescription; if request["playlist_id"] as? Int64 == selectedPlaylistID {reloadLibrary()}}; return false}
     }
     func importPlaylist(path:String,name:String) async {
         guard !closing,!playlistBusy else {return}
-        playlistBusy=true; defer {playlistBusy=false}
+        playlistBusy=true; message=nil; defer {playlistBusy=false}
         do {
             let reply:PlaylistCreated=try await library.request(["op":"m3u8_import","path":path,"name":name])
             try await refreshPlaylists()
             guard !closing else {return}
             selectPlaylist(reply.playlist.id)
-            message="Imported playlist. Unindexed paths remain unavailable until their folder is imported." + ((reply.skipped ?? 0)>0 ? " \(reply.skipped!) unsupported entries skipped." : "")
+            notice="Imported playlist. Tracks outside your library stay unavailable until you import their folder." + ((reply.skipped ?? 0)>0 ? " \(reply.skipped!) unsupported entries skipped." : "")
         } catch {if !closing {message=error.localizedDescription}}
     }
     func insertTrackIDs(_ ids:[Int64],to id:Int64,position:Int?=nil) {
@@ -90,8 +92,8 @@ final class PlayerModel {
     }
     func removeEntries(_ rows: [PlaybackSnapshot]) {
         guard let id=selectedPlaylistID else {return}
-        let ids=rows.compactMap(\.entryID)
-        Task {await mutatePlaylist(["op":"playlist_remove","playlist_id":id,"ids":ids,"revision":playlistRevision])}
+        let ids=rows.compactMap(\.entryID), revision=playlistRevision
+        Task {await mutatePlaylist(["op":"playlist_remove","playlist_id":id,"ids":ids,"revision":revision])}
     }
     func moveEntries(_ rows: [PlaybackSnapshot], to position: Int) {
         guard let id=selectedPlaylistID else {return}
@@ -104,10 +106,9 @@ final class PlayerModel {
     func nextTrack() {guard !closing else {return}; if let track=session.next() {playTrack(track)} }
     func previousTrack() {guard !closing else {return}; if let track=session.previous() {playTrack(track)} }
     func playRow(_ identity: String) {
-        guard let index=tracks.firstIndex(where:{$0.rowID==identity}), !closing else {return}
-        if let track=session.start(tracks,at:index,label:listTitle) {
-            if track.missing {message="Skipping an unavailable track."; nextTrack()} else {playTrack(track)}
-        }
+        guard let selectedIndex=tracks.firstIndex(where:{$0.rowID==identity}), !closing else {return}
+        guard let index=tracks.indices.dropFirst(selectedIndex).first(where:{!tracks[$0].missing}) else {message="No available tracks remain in this list.";return}
+        if let track=session.start(tracks,at:index,label:listTitle) {playTrack(track)}
     }
     private var libraryTask: Task<Void, Never>?
     private var importTask: Task<Void, Never>?
@@ -141,10 +142,11 @@ final class PlayerModel {
         guard !closing else {return}
         requestID += 1
         let id=requestID
-        message=nil; completion.disarm(); skippingFiles=true
+        message=nil; notice=nil; completion.disarm(); skippingFiles=true
         Task {
+            guard !closing, id==requestID else {return}
             do {
-                let sequence=try await bridge.command(path:track.path)
+                let sequence=try await bridge.command(path:track.path,request:id)
                 expected=max(expected,sequence.sequence)
                 guard !closing, id==requestID else {return}
                 requestedGeneration=sequence.generation; completion.arm(); startRefresh()
@@ -160,15 +162,16 @@ final class PlayerModel {
         requestID += 1; let id=requestID
         if action != 2 {completion.disarm()}
         Task {
+            guard !closing, id==requestID else {return}
             do {
-                let receipt=try await bridge.command(action:action)
+                let receipt=try await bridge.command(action:action,request:id)
                 expected=max(expected,receipt.sequence)
                 guard !closing, id==requestID else {return}
                 requestedGeneration=receipt.generation
                 if action==1 {completion.arm()}
                 message = nil; startRefresh()
             }
-            catch { message = error.localizedDescription }
+            catch {if !closing,id==requestID {message=error.localizedDescription}}
         }
     }
     private func startRefresh() {
@@ -186,8 +189,8 @@ final class PlayerModel {
                             snapshot.libraryID=current.libraryID; snapshot.entryID=current.entryID
                             snapshot.genre=current.genre; snapshot.bpm=current.bpm; snapshot.key=current.key
                         }
-                        playback = snapshot
-                        if snapshot.state==2 || snapshot.state==5 {session.began(); skippingFiles=false}
+                        if playback != snapshot {playback=snapshot}
+                        if snapshot.state==2 || snapshot.state==5 {if session.needsBeginConfirmation {session.began()}; skippingFiles=false}
                         if completion.consume(snapshot,generation:requestedGeneration,expected:expected) {
                             nextTrack(); return
                         }
@@ -243,13 +246,15 @@ final class PlayerModel {
             do {
                 var loaded: [PlaybackSnapshot] = []
                 var revision: UInt64?
+                var entryRevision: Int64?
                 repeat {
                     let batch: [PlaybackSnapshot], currentRevision: UInt64
                     if let playlist {
                         let page: PlaylistPage=try await library.request(["op":"playlist_entries","playlist_id":playlist,"offset":loaded.count,"limit":500])
                         batch=page.entries.map(\.snapshot); currentRevision=page.library_revision
-                        if loaded.isEmpty {playlistRevision=page.revision}
-                        else if playlistRevision != page.revision {reloadLibrary(); return}
+                        guard !Task.isCancelled,!closing,id==queryID else {return}
+                        if let entryRevision,entryRevision != page.revision {reloadLibrary();return}
+                        entryRevision=page.revision
                     } else {
                         let page: LibraryPage=try await library.request(["op":"query","search":query,"sort":sort,"descending":descending,"offset":loaded.count,"limit":500])
                         batch=page.tracks.map(\.snapshot); currentRevision=page.revision
@@ -259,6 +264,8 @@ final class PlayerModel {
                     revision=currentRevision; loaded.append(contentsOf:batch)
                     if batch.count<500 {break}
                 } while !Task.isCancelled
+                guard !Task.isCancelled,!closing,id==queryID else {return}
+                if let entryRevision {playlistRevision=entryRevision}
                 savedTracks = loaded; updateTracks()
             } catch { if !Task.isCancelled, !closing, id == queryID { message = error.localizedDescription } }
         }

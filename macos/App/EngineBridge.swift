@@ -41,9 +41,10 @@ struct SnapshotText: Decodable {
     let output_rate: UInt32?, output_channels: UInt32?, output_sample_format: String?
 }
 enum BridgeError: LocalizedError {
-    case status(Int32), closed, snapshotChanged
+    case status(Int32), closed, snapshotChanged, superseded
     var errorDescription: String? {
         switch self {
+        case .superseded: return "Playback request was superseded."
         case .closed: return "Playback engine is closed."
         case .snapshotChanged: return "Playback changed while reading its status. Try again."
         case .status(let code): return [1: "Invalid playback request.", 2: "Playback queue is full. Try again.", 3: "Playback worker is unavailable. Restart Reson.", 5: "Playback engine failed."][code] ?? "Playback error \(code)."
@@ -56,6 +57,7 @@ final class EngineBridge: @unchecked Sendable {
     private let queue = DispatchQueue(label: "reson.bridge")
     private var handle: OpaquePointer?
     private var sequence: UInt64 = 0
+    private var latestRequest: UInt64 = 0
     private var closed = false // Queue-owned, terminal even if no handle was created.
     private func perform<T>(_ operation: @escaping () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
@@ -71,9 +73,13 @@ final class EngineBridge: @unchecked Sendable {
         handle = created
         return created
     }
-    func command(path: String? = nil, action: UInt32 = 0) async throws -> PlaybackReceipt {
+    func command(path: String? = nil, action: UInt32 = 0, request: UInt64 = 0) async throws -> PlaybackReceipt {
         try await perform { [self] in
             let engine = try engine()
+            if request != 0 {
+                guard request>latestRequest else {throw BridgeError.superseded}
+                latestRequest=request
+            }
             let status: Int32
             if let path {
                 let bytes = Array(path.utf8)

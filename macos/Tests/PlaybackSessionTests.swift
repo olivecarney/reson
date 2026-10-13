@@ -39,3 +39,13 @@ final class PlaybackSessionTests: XCTestCase {
         f.disarm(); s.state=5; XCTAssertFalse(f.consume(s,generation:3,expected:6))
     }
 }
+
+extension PlaybackSessionTests {
+    func testReplacingAnUnstartedQueuedLoadPreservesTheRequestedQueueEntry() {
+        var session=PlaybackSession();_=session.start([track("a")],at:0,label:"Library");session.began();session.enqueue([track("queued")],next:false)
+        XCTAssertEqual(session.next()?.path,"queued");XCTAssertEqual(session.queue.count,1)
+        _=session.start([track("replacement")],at:0,label:"Playlist");session.began()
+        XCTAssertEqual(session.queue.count,1,"An unstarted queued occurrence must survive replacement")
+        XCTAssertEqual(session.next()?.path,"queued");session.began();XCTAssertTrue(session.queue.isEmpty)
+    }
+}

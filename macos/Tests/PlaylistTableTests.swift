@@ -60,3 +60,25 @@ extension PlaylistTableTests {
         XCTAssertNil(c.hoveredRow(table,location:NSPoint(x:40,y:90)))
     }
 }
+
+extension PlaylistTableTests {
+    final class DescriptorColumn:NSTableColumn {
+        var changes=0
+        override var sortDescriptorPrototype:NSSortDescriptor? {didSet {changes+=1}}
+    }
+    func testPlaybackRefreshDoesNotResetNativeColumnConfiguration() {
+        let parent=TrackTable(tracks:rows(),selection:.constant(nil),play:{_ in},dataRevision:1)
+        let c=parent.makeCoordinator(); let table=NSTableView(); let column=DescriptorColumn(identifier:NSUserInterfaceItemIdentifier("title"));column.sortDescriptorPrototype=NSSortDescriptor(key:"title",ascending:true);table.addTableColumn(column);table.dataSource=c; c.table=table;table.reloadData(); column.changes=0
+        c.update(parent);c.update(parent);XCTAssertEqual(column.changes,0,"Repeated native column mutation disturbs menu tracking")
+    }
+}
+
+extension PlaylistTableTests {
+    func testRemovingPrimarySelectionKeepsRemainingOccurrenceAndInspectorIdentity() async {
+        var selection:String?="e:1";let binding=Binding<String?>(get:{selection},set:{selection=$0});let initial=rows()
+        let parent=TrackTable(tracks:initial,selection:binding,play:{_ in},sourceID:"playlist:1");let c=parent.makeCoordinator();let table=NSTableView();table.dataSource=c;table.delegate=c;c.table=table;table.reloadData();table.selectRowIndexes(IndexSet([0,1]),byExtendingSelection:false);selection="e:1"
+        c.update(TrackTable(tracks:Array(initial.dropFirst()),selection:binding,play:{_ in},sourceID:"playlist:1"))
+        for _ in 0..<20 {if selection=="e:2" {break};await Task.yield()}
+        XCTAssertEqual(table.selectedRowIndexes,IndexSet(integer:0));XCTAssertEqual(selection,"e:2")
+    }
+}
