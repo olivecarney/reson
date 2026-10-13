@@ -39,3 +39,25 @@ final class LibraryBridgeTests: XCTestCase {
         await reopened.shutdown()
     }
 }
+
+extension LibraryBridgeTests {
+    func testDiagnosticLibraryStartupAndWarmQuery() async throws {
+        guard let root = ProcessInfo.processInfo.environment["RESON_BENCHMARK_DATABASES"] else { return }
+        for count in [270, 5000, 25000] {
+            let bridge = LibraryBridge(databaseURL: URL(fileURLWithPath: root).appendingPathComponent("\(count).db"))
+            let first = Date()
+            let page: LibraryPage = try await bridge.request(["op": "query", "limit": 500])
+            let firstMS = Date().timeIntervalSince(first) * 1000
+            XCTAssertEqual(page.tracks.count, min(count, 500))
+            var timings: [Double] = []
+            for _ in 0..<30 {
+                let start = Date()
+                let _: LibraryPage = try await bridge.request(["op": "query", "search": "Artist 42", "limit": 500])
+                timings.append(Date().timeIntervalSince(start) * 1000)
+            }
+            timings.sort()
+            print("NATIVE_BRIDGE count=\(count) first_page_ms=\(firstMS) warm_search_median_ms=\(timings[15])")
+            await bridge.shutdown()
+        }
+    }
+}

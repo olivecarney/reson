@@ -51,3 +51,17 @@ fn metadata_text_has_no_container_padding() {
     assert_eq!(info.title, "Fixture title");
     assert_eq!(info.artist.as_deref(), Some("Fixture artist"));
 }
+#[test]
+fn blank_tags_remain_unknown_and_title_falls_back_to_filename() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("fallback.wav");
+    let mut bytes = std::fs::read(fixture("tagged.wav")).unwrap();
+    for text in [b"Fixture title".as_slice(), b"Fixture artist".as_slice()] {
+        let offset = bytes.windows(text.len()).position(|w| w == text).unwrap();
+        bytes[offset..offset + text.len()].fill(b' ');
+    }
+    std::fs::write(&path, bytes).unwrap();
+    let info = probe(&path).unwrap();
+    assert_eq!(info.title, "fallback");
+    assert_eq!(info.artist, None);
+}

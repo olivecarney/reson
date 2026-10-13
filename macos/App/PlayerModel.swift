@@ -35,6 +35,7 @@ final class PlayerModel {
         panel.title = "Open a lossless audio file"
         panel.allowedContentTypes = [UTType(filenameExtension: "flac"), UTType.wav].compactMap { $0 }
         panel.canChooseDirectories = false
+        panel.canChooseFiles = true
         panel.begin { [weak self] result in
             if result == .OK, let url = panel.url { self?.load(url.path) }
         }
@@ -133,6 +134,7 @@ final class PlayerModel {
     func importFolder() {
         let panel = NSOpenPanel()
         panel.title = "Import a music folder"
+        panel.allowedContentTypes = []
         panel.canChooseDirectories = true; panel.canChooseFiles = false
         panel.begin { [weak self] result in
             if result == .OK, let url = panel.url { self?.beginImport(path: url.path) }

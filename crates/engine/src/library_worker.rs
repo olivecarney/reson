@@ -43,37 +43,9 @@ impl Library {
         let (ready_tx, ready_rx) = mpsc::channel();
         let closing = Arc::new(AtomicBool::new(false));
         let shutdown = closing.clone();
-        let worker=std::thread::Builder::new().name("reson-library".into()).spawn(move||{
-   let mut store=match LibraryStore::open(&path){Ok(s)=>{let _=ready_tx.send(Ok(()));s},Err(e)=>{let _=ready_tx.send(Err(e.to_string()));return;}};
-   let mut status=Status::default();let mut active:Option<Scan>=None;let mut pending=std::collections::VecDeque::<PathBuf>::new();
-   while !shutdown.load(Ordering::Relaxed){
-    let message=if status.busy {match rx.try_recv(){Ok(m)=>Some(m),Err(mpsc::TryRecvError::Empty)=>None,Err(_)=>break}}else{match rx.recv(){Ok(m)=>Some(m),Err(_)=>break}};
-    if let Some(m)=message {
-     let response=(||->Result<Value>{
-      let r:Request=serde_json::from_value(m.request)?;
-      match r.op.as_str(){
-       "query"=>{if r.search.len()>4096||r.limit>500{return Err("Invalid query bounds".into());}let sort=Sort::from_code(r.sort).ok_or("Invalid sort column")?;Ok(json!({"tracks":store.query(&r.search,sort,r.descending,r.offset,if r.limit==0{500}else{r.limit})?,"revision":status.revision}))},
-       "status"=>Ok(serde_json::to_value(&status)?),
-       "import"|"rescan"=>{
-        if status.busy{return Err("An import is already running".into());}
-        let paths=if r.op=="rescan"{store.folders()?}else{if r.path.is_empty()||r.path.len()>32768{return Err("Invalid folder path".into());}vec![PathBuf::from(r.path)]};
-        pending=paths.into();status.summary=ScanSummary::default();status.busy = !pending.is_empty();Ok(json!({}))
-       },
-       "cancel"=>{pending.clear();active=None;status.busy=false;status.summary.cancelled=true;status.revision+=1;Ok(json!({}))},
-       _=>Err("Unknown library operation".into()),
-      }
-     })().unwrap_or_else(|e|json!({"error":e.to_string()}));let _=m.reply.send(response);
-    }
-    if status.busy {
-     if active.is_none(){if let Some(path)=pending.pop_front(){match store.begin_scan(&path){Ok(s)=>active=Some(s),Err(e)=>{status.summary.failed+=1;status.summary.error=Some(e.to_string());}}}else{status.busy=false;status.revision+=1;continue;}}
-     if let Some(scan)=active.as_mut(){let before=scan.summary.clone();match store.step(scan){
-      Ok(true)=>{status.summary.visited+=scan.summary.visited-before.visited;status.summary.indexed+=scan.summary.indexed-before.indexed;status.summary.failed+=scan.summary.failed-before.failed;if scan.summary.error.is_some(){status.summary.error=scan.summary.error.clone();}status.revision+=1;},
-      Ok(false)=>{if let Err(e)=store.finish(scan){status.summary.failed+=1;status.summary.error=Some(e.to_string());}active=None;status.revision+=1;},
-      Err(e)=>{status.summary.failed+=1;status.summary.error=Some(e.to_string());active=None;},
-     }}
-    }
-   }
-  })?;
+        let worker = std::thread::Builder::new()
+            .name("reson-library".into())
+            .spawn(move || run(path, rx, ready_tx, shutdown))?;
         match ready_rx.recv()? {
             Ok(()) => Ok(Self {
                 sender: Some(tx),
@@ -105,5 +77,150 @@ impl Library {
 impl Drop for Library {
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+struct Worker {
+    store: LibraryStore,
+    status: Status,
+    active: Option<Scan>,
+    pending: std::collections::VecDeque<PathBuf>,
+}
+fn run(
+    path: PathBuf,
+    receiver: mpsc::Receiver<Message>,
+    ready: mpsc::Sender<std::result::Result<(), String>>,
+    closing: Arc<AtomicBool>,
+) {
+    let store = match LibraryStore::open(&path) {
+        Ok(store) => {
+            let _ = ready.send(Ok(()));
+            store
+        }
+        Err(error) => {
+            let _ = ready.send(Err(error.to_string()));
+            return;
+        }
+    };
+    let mut worker = Worker {
+        store,
+        status: Status::default(),
+        active: None,
+        pending: Default::default(),
+    };
+    while !closing.load(Ordering::Relaxed) {
+        let message = if worker.status.busy {
+            match receiver.try_recv() {
+                Ok(message) => Some(message),
+                Err(mpsc::TryRecvError::Empty) => None,
+                Err(_) => break,
+            }
+        } else {
+            match receiver.recv() {
+                Ok(message) => Some(message),
+                Err(_) => break,
+            }
+        };
+        if let Some(message) = message {
+            let response = serde_json::from_value::<Request>(message.request)
+                .map_err(|error| -> Box<dyn std::error::Error + Send + Sync> { Box::new(error) })
+                .and_then(|request| worker.respond(request))
+                .unwrap_or_else(|error| json!({"error": error.to_string()}));
+            let _ = message.reply.send(response);
+        }
+        if worker.status.busy {
+            worker.step();
+        }
+    }
+}
+impl Worker {
+    fn respond(&mut self, request: Request) -> Result<Value> {
+        match request.op.as_str() {
+            "query" => {
+                if request.search.len() > 4096 || request.limit > 500 {
+                    return Err("Invalid query bounds".into());
+                }
+                let sort = Sort::from_code(request.sort).ok_or("Invalid sort column")?;
+                let limit = if request.limit == 0 {
+                    500
+                } else {
+                    request.limit
+                };
+                Ok(
+                    json!({"tracks": self.store.query(&request.search, sort, request.descending, request.offset, limit)?, "revision": self.status.revision}),
+                )
+            }
+            "status" => Ok(serde_json::to_value(&self.status)?),
+            "import" | "rescan" => {
+                if self.status.busy {
+                    return Err("An import is already running".into());
+                }
+                let paths = if request.op == "rescan" {
+                    self.store.folders()?
+                } else {
+                    if request.path.is_empty() || request.path.len() > 32768 {
+                        return Err("Invalid folder path".into());
+                    }
+                    vec![PathBuf::from(request.path)]
+                };
+                self.pending = paths.into();
+                self.status.summary = ScanSummary::default();
+                self.status.busy = !self.pending.is_empty();
+                Ok(json!({}))
+            }
+            "cancel" => {
+                self.pending.clear();
+                self.active = None;
+                self.status.busy = false;
+                self.status.summary.cancelled = true;
+                self.status.revision += 1;
+                Ok(json!({}))
+            }
+            _ => Err("Unknown library operation".into()),
+        }
+    }
+    fn fail(&mut self, error: impl std::fmt::Display) {
+        self.status.summary.failed += 1;
+        self.status.summary.error = Some(error.to_string());
+    }
+    fn step(&mut self) {
+        if self.active.is_none() {
+            if let Some(path) = self.pending.pop_front() {
+                match self.store.begin_scan(&path) {
+                    Ok(scan) => self.active = Some(scan),
+                    Err(error) => self.fail(error),
+                }
+            } else {
+                self.status.busy = false;
+                self.status.revision += 1;
+                return;
+            }
+        }
+        let Some(scan) = self.active.as_mut() else {
+            return;
+        };
+        let before = scan.summary.clone();
+        match self.store.step(scan) {
+            Ok(true) => {
+                self.status.summary.visited += scan.summary.visited - before.visited;
+                self.status.summary.indexed += scan.summary.indexed - before.indexed;
+                self.status.summary.failed += scan.summary.failed - before.failed;
+                if scan.summary.error.is_some() {
+                    self.status.summary.error = scan.summary.error.clone();
+                }
+                self.status.revision += 1;
+            }
+            Ok(false) => {
+                if let Err(error) = self.store.finish(scan) {
+                    self.fail(error);
+                }
+                self.active = None;
+                self.status.revision += 1;
+            }
+            Err(error) => {
+                self.fail(error);
+                self.active = None;
+            }
+        }
     }
 }

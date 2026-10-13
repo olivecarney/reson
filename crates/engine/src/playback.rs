@@ -121,6 +121,15 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
             }
         }
     }
+    if info.title.is_empty() {
+        info.title = path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+    }
+    info.artist = info.artist.filter(|text| !text.is_empty());
+    info.album = info.album.filter(|text| !text.is_empty());
     Ok(info)
 }
 trait Backend {

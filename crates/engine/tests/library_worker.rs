@@ -47,3 +47,32 @@ fn worker_import_query_cancel_and_reopen() {
     library.shutdown();
     assert!(library.request(serde_json::json!({"op":"status"})).is_err());
 }
+#[test]
+fn cancellation_and_browsing_are_serviced_between_files() {
+    let d = tempfile::tempdir().unwrap();
+    let music = d.path().join("music");
+    std::fs::create_dir(&music).unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/pcm16-44100-1.wav");
+    for n in 0..2000 {
+        std::fs::hard_link(&fixture, music.join(format!("{n}.wav"))).unwrap();
+    }
+    let db = d.path().join("db");
+    let mut library = Library::new(db.clone()).unwrap();
+    library
+        .request(serde_json::json!({"op":"import","path":music}))
+        .unwrap();
+    let start = std::time::Instant::now();
+    let result = library.request(serde_json::json!({"op":"query"})).unwrap();
+    assert!(result["tracks"].is_array());
+    assert!(start.elapsed() < std::time::Duration::from_secs(2));
+    library.request(serde_json::json!({"op":"cancel"})).unwrap();
+    let status = library.request(serde_json::json!({"op":"status"})).unwrap();
+    assert_eq!(status["busy"], false);
+    assert_eq!(status["summary"]["cancelled"], true);
+    assert!(status["summary"]["indexed"].as_u64().unwrap() < 2000);
+    library.shutdown();
+    let mut library = Library::new(db).unwrap();
+    let rows = library.request(serde_json::json!({"op":"query"})).unwrap();
+    assert!(!rows["tracks"].as_array().unwrap().is_empty());
+}
