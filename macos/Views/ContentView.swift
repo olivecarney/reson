@@ -49,7 +49,7 @@ struct ContentView: View {
                 }.background(Color(red: 0.085, green: 0.09, blue: 0.105))
                 if model.showInspector { Divider(); InspectorView(track: model.selected).frame(width: 250) }
             }
-            if let error = model.message ?? model.playback.error {
+            if let error = model.message ?? model.playback.error ?? model.playback.outputNotice {
                 HStack { Image(systemName: "exclamationmark.circle"); Text(error).font(.system(size: 12)); Spacer(); Button("Open File…") { model.openFile() } }
                     .padding(12).background(Color.orange.opacity(0.12)).foregroundStyle(.orange)
             }

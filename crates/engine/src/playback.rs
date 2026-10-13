@@ -138,12 +138,15 @@ trait Backend {
     fn pause(&mut self);
     fn stop(&mut self);
     fn poll(&mut self) -> Result<(f64, bool), EngineError>;
+    fn take_output_notice(&mut self) -> Option<String> {
+        None
+    }
 }
 #[derive(Default)]
 struct RodioBackend {
     player: Option<Player>,
     stream: Option<MixerDeviceSink>,
-    failed: Arc<AtomicBool>,
+    output_events: Option<OutputEvents>,
 }
 impl Backend for RodioBackend {
     fn load(&mut self, path: &Path) -> Result<Snapshot, EngineError> {
@@ -151,17 +154,14 @@ impl Backend for RodioBackend {
         let mut info = probe(path)?;
         let file = File::open(path).map_err(|e| EngineError::Io(e.to_string()))?;
         let decoder = Decoder::try_from(file).map_err(|e| EngineError::Decode(e.to_string()))?;
-        self.failed.store(false, Ordering::Relaxed);
-        let failed = self.failed.clone();
+        let (callback, events) = output_events();
         let mut stream = configure_output(
             DeviceSinkBuilder::from_default_device()
-                .map_err(|e| EngineError::Output(e.to_string()))?,
+                .map_err(|e| EngineError::Output(format!("Default output configuration: {e}")))?,
         )
-        .with_error_callback(move |_| {
-            failed.store(true, Ordering::Relaxed);
-        })
+        .with_error_callback(callback)
         .open_stream()
-        .map_err(|e| EngineError::Output(e.to_string()))?;
+        .map_err(|e| EngineError::Output(format!("Output stream initialization: {e}")))?;
         stream.log_on_drop(false);
         info.output_rate = Some(stream.config().sample_rate().get());
         info.output_channels = Some(stream.config().channel_count().get());
@@ -170,6 +170,7 @@ impl Backend for RodioBackend {
         player.append(decoder);
         self.player = Some(player);
         self.stream = Some(stream);
+        self.output_events = Some(events);
         Ok(info)
     }
     fn play(&mut self) {
@@ -187,12 +188,33 @@ impl Backend for RodioBackend {
             p.stop();
         }
         self.stream.take();
+        self.output_events = None;
+    }
+    fn take_output_notice(&mut self) -> Option<String> {
+        let error = self.output_events.as_ref()?.notices.try_recv().ok()?;
+        let action = match error.kind() {
+            rodio::cpal::ErrorKind::DeviceChanged => {
+                "The stream rerouted automatically. Check the selected system output device."
+            }
+            rodio::cpal::ErrorKind::Xrun => {
+                "A glitch may have occurred. Reduce system load if it repeats."
+            }
+            _ => "Timing may be less reliable under load.",
+        };
+        Some(format!(
+            "Output notice ({:?}): {error} {action}",
+            error.kind()
+        ))
     }
     fn poll(&mut self) -> Result<(f64, bool), EngineError> {
-        if self.failed.load(Ordering::Relaxed) {
-            return Err(EngineError::Output(
-                "Output device failed; open or play again to retry".into(),
-            ));
+        if let Some(error) = self
+            .output_events
+            .as_ref()
+            .and_then(|events| events.fatal.try_recv().ok())
+        {
+            return Err(EngineError::Output(format!(
+                "Output stream callback ({:?}): {error} Check the output device, then press Play to retry.", error.kind()
+            )));
         }
         Ok(self
             .player
@@ -200,6 +222,30 @@ impl Backend for RodioBackend {
             .map(|p| (p.get_pos().as_secs_f64(), p.empty()))
             .unwrap_or((0.0, true)))
     }
+}
+struct OutputEvents {
+    fatal: Receiver<rodio::cpal::Error>,
+    notices: Receiver<rodio::cpal::Error>,
+}
+fn output_events() -> (
+    impl FnMut(rodio::cpal::Error) + Send + 'static,
+    OutputEvents,
+) {
+    let (fatal_tx, fatal) = mpsc::sync_channel(1);
+    let (notice_tx, notices) = mpsc::sync_channel(1);
+    let callback = move |error: rodio::cpal::Error| {
+        // CPAL reports these notifications without invalidating the stream.
+        // Separate bounded channels prevent a notice flood hiding a fatal error.
+        // Keep the actual error; formatting happens on the worker, never here.
+        let sender = match error.kind() {
+            rodio::cpal::ErrorKind::DeviceChanged
+            | rodio::cpal::ErrorKind::Xrun
+            | rodio::cpal::ErrorKind::RealtimeDenied => &notice_tx,
+            _ => &fatal_tx,
+        };
+        let _ = sender.try_send(error);
+    };
+    (callback, OutputEvents { fatal, notices })
 }
 struct Envelope {
     command: Command,
@@ -406,12 +452,16 @@ fn run_worker<B: Backend>(
             Err(true) => break,
             Err(false) => {
                 let result = backend.poll();
+                let notice = backend.take_output_notice();
                 let mut s = lock(shared);
                 if s.generation != active_generation {
                     continue;
                 }
                 match result {
                     Ok((pos, ended)) => {
+                        if let Some(notice) = notice {
+                            s.output_notice = Some(notice);
+                        }
                         if playing {
                             s.position_seconds = pos;
                         }

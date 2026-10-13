@@ -27,6 +27,7 @@ pub struct Snapshot {
     pub bit_depth: Option<u16>,
     pub format: String,
     pub error: Option<String>,
+    pub output_notice: Option<String>,
     pub output_rate: Option<u32>,
     pub output_channels: Option<u16>,
     pub output_sample_format: Option<String>,

@@ -21,6 +21,7 @@ struct PlaybackSnapshot: Equatable {
     var album: String?
     var format = ""
     var error: String?
+    var outputNotice: String?
     var outputRate: UInt32?
     var outputChannels: UInt32?
     var outputFormat: String?
@@ -29,8 +30,9 @@ struct PlaybackSnapshot: Equatable {
     var stateLabel: String { ["Ready", "Loading", "Playing", "Paused", "Stopped", "Ended", "Error"][Int(min(state, 6))] }
     var displayTitle: String { title.isEmpty ? URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent : title }
 }
-private struct SnapshotText: Decodable {
+struct SnapshotText: Decodable {
     let path: String, title: String, artist: String?, album: String?, format: String, error: String?
+    let output_notice: String?
     let output_rate: UInt32?, output_channels: UInt32?, output_sample_format: String?
 }
 enum BridgeError: LocalizedError {
@@ -101,7 +103,7 @@ final class EngineBridge: @unchecked Sendable {
                 result.generation = scalars.generation; result.acknowledged = scalars.acknowledged
                 result.state = scalars.state; result.position = scalars.position_seconds; result.duration = scalars.duration_seconds
                 result.rate = scalars.sample_rate; result.channels = scalars.channels; result.bits = scalars.bit_depth
-                result.path = text.path; result.title = text.title; result.artist = text.artist; result.album = text.album; result.format = text.format; result.error = text.error
+                result.path = text.path; result.title = text.title; result.artist = text.artist; result.album = text.album; result.format = text.format; result.error = text.error; result.outputNotice = text.output_notice
                 result.outputRate = text.output_rate; result.outputChannels = text.output_channels; result.outputFormat = text.output_sample_format
                 return result
             }

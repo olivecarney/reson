@@ -23,7 +23,8 @@ int32_t reson_engine_play(ResonEngine *engine);
 int32_t reson_engine_pause(ResonEngine *engine);
 int32_t reson_engine_stop(ResonEngine *engine);
 /* JSON text plus NUL; required includes NUL. Query with text=NULL, capacity=0.
-   Scalars are copied even when text is too small. Retry if text grew. */
+   Scalars are copied even when text is too small. Retry if text grew.
+   JSON error is fatal; optional output_notice reports nonfatal stream events. */
 int32_t reson_engine_snapshot(ResonEngine *engine, ResonSnapshot *out,
                             uint8_t *text, size_t capacity, size_t *required);
 /* Independent library worker; never call from main/UI/audio threads.
