@@ -237,3 +237,59 @@ fn failed_sql_write_rolls_back_partial_reorder_and_playlist_entries_survive_resc
     assert!(restored.iter().all(|e| !e.track.missing && e.track.id == t));
     assert_eq!(restored.iter().map(|e| e.id).collect::<Vec<_>>(), before);
 }
+
+#[test]
+fn playlist_edits_are_serviced_during_import_and_survive_cancellation() {
+    let d = tempfile::tempdir().unwrap();
+    let music = d.path().join("music");
+    std::fs::create_dir(&music).unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/pcm16-44100-1.wav");
+    for n in 0..500 {
+        std::fs::hard_link(&fixture, music.join(format!("{n}.wav"))).unwrap();
+    }
+    let mut l = Library::new(d.path().join("db")).unwrap();
+    l.request(json!({"op":"import","path":music})).unwrap();
+    let p = l
+        .request(json!({"op":"playlist_create","name":"During import"}))
+        .unwrap();
+    let id = p["playlist"]["id"].as_i64().unwrap();
+    let t = l.request(json!({"op":"query"})).unwrap()["tracks"][0]["id"]
+        .as_i64()
+        .unwrap();
+    assert!(l
+        .request(json!({"op":"playlist_add","playlist_id":id,"ids":[t,t]}))
+        .unwrap()["error"]
+        .is_null());
+    assert_eq!(l.request(json!({"op":"status"})).unwrap()["busy"], true);
+    l.request(json!({"op":"cancel"})).unwrap();
+    l.shutdown();
+    let mut l = Library::new(d.path().join("db")).unwrap();
+    assert_eq!(
+        l.request(json!({"op":"playlist_entries","playlist_id":id}))
+            .unwrap()["entries"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn stale_foreign_key_cannot_attach_a_reused_track_id_to_the_wrong_file() {
+    let d = tempfile::tempdir().unwrap();
+    let db = d.path().join("db");
+    let mut s = LibraryStore::open(&db).unwrap();
+    let ids = seed(&mut s);
+    let p = s.create_playlist("Recovery").unwrap();
+    s.add_playlist_tracks(p.id, &[ids[0]], 0).unwrap();
+    drop(s);
+    // An external SQLite client without foreign_keys enabled violates the reference.
+    let c = rusqlite::Connection::open(&db).unwrap();
+    c.execute_batch("DELETE FROM tracks; INSERT INTO tracks(id,path,title,format,size,modified,imported) VALUES(1,'/different.wav','Wrong file','WAV',0,0,0);").unwrap();
+    drop(c);
+    let s = LibraryStore::open(&db).unwrap();
+    let e = s.playlist_entries(p.id, 0, 500).unwrap();
+    assert_eq!(e[0].track.path, "/music/0.wav");
+    assert!(e[0].track.missing);
+}

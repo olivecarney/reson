@@ -73,11 +73,11 @@ impl LibraryStore {
                 continue;
             }
             let file = Path::new(line);
-            let file = normalize(&if file.is_absolute() {
+            let file = if file.is_absolute() {
                 file.to_owned()
             } else {
                 base.join(file)
-            });
+            };
             if !file
                 .extension()
                 .and_then(|e| e.to_str())
@@ -86,7 +86,13 @@ impl LibraryStore {
                 skipped += 1;
                 continue;
             }
-            let file = file.canonicalize().unwrap_or(file);
+            let file = file.canonicalize().unwrap_or_else(|_| {
+                file.parent()
+                    .and_then(|p| p.canonicalize().ok())
+                    .zip(file.file_name())
+                    .map(|(parent, leaf)| parent.join(leaf))
+                    .unwrap_or_else(|| normalize(&file))
+            });
             let path = file.to_str().ok_or("Path is not UTF-8")?.to_owned();
             let (duration, title) = meta.unwrap_or_else(|| {
                 (
@@ -166,18 +172,20 @@ impl LibraryStore {
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
+        let mut created = false;
         let result = (|| -> Result<()> {
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
                 .create_new(true)
                 .open(&temporary)?;
+            created = true;
             file.write_all(text.as_bytes())?;
             file.sync_all()?;
             std::fs::rename(&temporary, &absolute)?;
             std::fs::File::open(base)?.sync_all()?;
             Ok(())
         })();
-        if result.is_err() {
+        if result.is_err() && created {
             let _ = std::fs::remove_file(temporary);
         }
         result
