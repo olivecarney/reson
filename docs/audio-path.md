@@ -17,3 +17,8 @@ Startup is silent and lazy. Stop/EOF closes playback resources; pause retains th
 On 13 October 2026, synthetic 24-bit stereo 44.1 kHz WAV and FLAC sources opened a 48 kHz stereo F32 stream on the default AirPods output. This explicitly involves rate conversion. It does not measure the device's physical output precision. Live command-state checks passed; no listening/loopback capture was completed.
 
 Rodio's chosen Fixed(2048) buffer was outside that device's supported 15..960-frame range. Reson overrides the builder to use `cpal::BufferSize::Default` (OS-selected), retaining its actual rate/channels/sample format. This avoids hardcoded device latency assumptions without selecting or modifying the user's device.
+
+
+## Output-event handling (v0.2 correction)
+
+CPAL route-change, xrun and scheduling notices are shown without destroying a valid stream. Fatal callback errors preserve their category/message, stop resources and require explicit Play or a new file to recover. Configuration and initialization errors include stage context. See [the playback investigation](playback-output-investigation-v0.2.md) for reproduction, baseline comparison and resource evidence.

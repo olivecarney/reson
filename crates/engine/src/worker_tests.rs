@@ -353,3 +353,155 @@ fn no_stream_means_no_backend_polling() {
     assert_eq!(polls.load(Ordering::SeqCst), before);
     e.shutdown().unwrap();
 }
+
+#[test]
+fn output_callback_preserves_native_error_details_and_stage() {
+    let (mut callback, events) = output_events();
+    let mut backend = RodioBackend {
+        output_events: Some(events),
+        ..Default::default()
+    };
+    callback(rodio::cpal::Error::with_message(
+        rodio::cpal::ErrorKind::BackendError,
+        "CoreAudio OSStatus -50: fixture detail",
+    ));
+    let error = backend.poll().unwrap_err().to_string();
+    assert!(error.contains("callback"));
+    assert!(error.contains("BackendError"));
+    assert!(error.contains("OSStatus -50: fixture detail"));
+    assert!(error.contains("Play"));
+}
+
+#[test]
+fn nonfatal_output_events_are_visible_without_failing_playback() {
+    for kind in [
+        rodio::cpal::ErrorKind::DeviceChanged,
+        rodio::cpal::ErrorKind::Xrun,
+        rodio::cpal::ErrorKind::RealtimeDenied,
+    ] {
+        let (mut callback, events) = output_events();
+        let mut backend = RodioBackend {
+            output_events: Some(events),
+            ..Default::default()
+        };
+        callback(rodio::cpal::Error::with_message(
+            kind,
+            "fixture notification",
+        ));
+        assert!(
+            backend.poll().is_ok(),
+            "{kind:?} is not a fatal stream error"
+        );
+        let notice = backend.take_output_notice().unwrap();
+        assert!(notice.contains("fixture notification"));
+        assert!(notice.contains(&format!("{kind:?}")));
+        assert!(backend.take_output_notice().is_none());
+    }
+}
+#[test]
+fn notice_flood_cannot_hide_fatal_error_or_cross_stream_lifetimes() {
+    let (mut old_callback, old_events) = output_events();
+    drop(old_events);
+    let (mut callback, events) = output_events();
+    let mut backend = RodioBackend {
+        output_events: Some(events),
+        ..Default::default()
+    };
+    old_callback(rodio::cpal::Error::with_message(
+        rodio::cpal::ErrorKind::DeviceNotAvailable,
+        "stale old stream",
+    ));
+    assert!(backend.poll().is_ok());
+    for _ in 0..100 {
+        callback(rodio::cpal::ErrorKind::DeviceChanged.into());
+    }
+    callback(rodio::cpal::Error::with_message(
+        rodio::cpal::ErrorKind::DeviceNotAvailable,
+        "fixture disconnected",
+    ));
+    let error = backend.poll().unwrap_err().to_string();
+    assert!(error.contains("DeviceNotAvailable"));
+    assert!(error.contains("fixture disconnected"));
+    backend.stop();
+    assert!(backend.output_events.is_none());
+}
+
+#[test]
+fn worker_keeps_rerouted_stream_active_and_cleans_up_real_failures() {
+    struct CallbackBackend {
+        output: RodioBackend,
+        active: bool,
+        drops: Arc<AtomicUsize>,
+    }
+    impl Backend for CallbackBackend {
+        fn load(&mut self, path: &Path) -> Result<Snapshot, EngineError> {
+            self.active = true;
+            Ok(Snapshot {
+                path: path.to_string_lossy().into(),
+                title: "fixture".into(),
+                ..Default::default()
+            })
+        }
+        fn play(&mut self) {}
+        fn pause(&mut self) {}
+        fn stop(&mut self) {
+            if self.active {
+                self.drops.fetch_add(1, Ordering::SeqCst);
+                self.active = false;
+                self.output.stop();
+            }
+        }
+        fn poll(&mut self) -> Result<(f64, bool), EngineError> {
+            self.output.poll()?;
+            Ok((4.0, false))
+        }
+        fn take_output_notice(&mut self) -> Option<String> {
+            self.output.take_output_notice()
+        }
+    }
+    let (mut callback, events) = output_events();
+    let drops = Arc::new(AtomicUsize::new(0));
+    let copy = drops.clone();
+    let mut engine = Engine::with_backend(move || CallbackBackend {
+        output: RodioBackend {
+            output_events: Some(events),
+            ..Default::default()
+        },
+        active: false,
+        drops: copy,
+    })
+    .unwrap();
+    engine.send(Command::Load("fixture".into())).unwrap();
+    wait(&engine, PlaybackState::Playing);
+    callback(rodio::cpal::Error::with_message(
+        rodio::cpal::ErrorKind::DeviceChanged,
+        "default output device changed",
+    ));
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    while engine.snapshot().output_notice.is_none() {
+        assert!(std::time::Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(engine.snapshot().state, PlaybackState::Playing);
+    assert!(engine.snapshot().error.is_none());
+    assert_eq!(drops.load(Ordering::SeqCst), 0);
+    engine.send(Command::Pause).unwrap();
+    wait(&engine, PlaybackState::Paused);
+    callback(rodio::cpal::Error::with_message(
+        rodio::cpal::ErrorKind::DeviceNotAvailable,
+        "fixture disconnected",
+    ));
+    wait(&engine, PlaybackState::Error);
+    assert!(engine
+        .snapshot()
+        .error
+        .unwrap()
+        .contains("fixture disconnected"));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    engine.send(Command::Load("recovered".into())).unwrap();
+    wait(&engine, PlaybackState::Playing);
+    assert!(engine.snapshot().output_notice.is_none());
+    assert!(engine.snapshot().error.is_none());
+    engine.shutdown().unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 2);
+}

@@ -1,0 +1,3 @@
+# Link the platform SQLite rather than discovering a Homebrew installation.
+[env]
+SQLITE3_NO_PKG_CONFIG = { value = "1", force = true }

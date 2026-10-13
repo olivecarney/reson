@@ -23,7 +23,18 @@ int32_t reson_engine_play(ResonEngine *engine);
 int32_t reson_engine_pause(ResonEngine *engine);
 int32_t reson_engine_stop(ResonEngine *engine);
 /* JSON text plus NUL; required includes NUL. Query with text=NULL, capacity=0.
-   Scalars are copied even when text is too small. Retry if text grew. */
+   Scalars are copied even when text is too small. Retry if text grew.
+   JSON error is fatal; optional output_notice reports nonfatal stream events. */
 int32_t reson_engine_snapshot(ResonEngine *engine, ResonSnapshot *out,
                             uint8_t *text, size_t capacity, size_t *required);
+/* Independent library worker; never call from main/UI/audio threads.
+   Requests are UTF-8 JSON: op=query (search,sort 0..6,descending,offset,limit 1..500),
+   import (path), rescan, cancel, status. Errors returned in JSON error field.
+   A request retains its response until the next request. Read two-pass JSON + NUL.
+   Serialize handle access and destroy only after prior calls complete. */
+typedef struct ResonLibrary ResonLibrary;
+int32_t reson_library_create(const uint8_t *path, size_t length, ResonLibrary **out);
+int32_t reson_library_request(ResonLibrary *library, const uint8_t *json, size_t length);
+int32_t reson_library_read(ResonLibrary *library, uint8_t *output, size_t capacity, size_t *required);
+void reson_library_destroy(ResonLibrary *library);
 #endif

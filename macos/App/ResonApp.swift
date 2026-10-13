@@ -32,11 +32,14 @@ struct ResonApp: App {
             ContentView(model: model)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: 820, minHeight: 520)
-                .onAppear { delegate.model = model }
+                .onAppear { delegate.model = model; model.startLibrary() }
         }
         .defaultSize(width: 1180, height: 740)
         .commands {
-            CommandGroup(replacing: .newItem) { Button("Open File…") { model.openFile() }.keyboardShortcut("o") }
+            CommandGroup(replacing: .newItem) { Button("Open File…") { model.openFile() }.keyboardShortcut("o")
+                Button("Import Folder…") { model.importFolder() }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.importBusy)
+                Button("Rescan Folders") { model.rescanFolders() }.disabled(model.importBusy)
+                Button("Cancel Import") { model.cancelImport() }.disabled(!model.importBusy) }
             CommandMenu("Playback") {
                 Button(model.playback.state == 2 ? "Pause" : "Play") { model.togglePlayback() }.disabled(model.playback.path.isEmpty)
                 Button("Stop") { model.stop() }.disabled(model.playback.path.isEmpty)

@@ -4,21 +4,22 @@ A lightweight native macOS player for local lossless music.
 
 Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-**Status: v0.1.1 playback prototype.** Reson can open and play FLAC/WAV files; library indexing and persistent playlists are still ahead.
+**Status: v0.2 persistent library prototype.** Import FLAC/WAV folders, browse saved metadata, search and sort, and play tracks through the native interface.
 
-v0.1.1 hardens terminal shutdown, detects paused output failures and reuses native table cells. It adds no player features. See the [maintenance validation record](docs/validation-v0.1.1.md).
+v0.2 adds a background Rust library worker using macOS system SQLite through `rusqlite`, without bundled SQLite. See the [library design](docs/library-v0.2.md), [validation and measurements](docs/validation-v0.2.md), and [database decision](docs/spikes/system-sqlite.md).
 
 ## What works
 
 - FLAC and PCM WAV playback through a small Rust engine.
 - Play, pause, resume, stop and restart.
-- Native track table with files opened during the current session.
-- Title, artist, album and audio properties where available.
+- Persistent recursive folder imports, cancellation, duplicate prevention and manual rescans.
+- Native track table with search, column sorting and missing-file indicators.
+- Title, artist, album, genre, tagged BPM/key and audio properties where available.
 - Dark interface, translucent sidebar and collapsible inspector.
 - Native file picker, double-click playback and macOS shortcuts.
 - Background file setup and shutdown, with protection against stale track metadata during rapid replacement.
 
-Session tracks disappear when the app quits. Artwork uses a placeholder. Artists, albums, genres and playlists in the sidebar are marked as future functionality.
+Folder imports persist in `~/Library/Application Support/Reson/library.db`. Files opened individually remain session-only. Artwork uses a placeholder. Artists, albums, genres and playlists in the sidebar are marked as future functionality.
 
 ## Build and run
 
@@ -54,7 +55,10 @@ The project requests macOS 14 or later. The initial build machine's Homebrew Rus
 | Action | Control |
 | --- | --- |
 | Open and play a file | **⌘O** or Open File |
-| Play a session track | Double-click its row |
+| Import a folder | **⇧⌘O** or Import Folder |
+| Rescan saved folders | File → Rescan Folders |
+| Search / sort | Search field / column headers |
+| Play a track | Double-click its row |
 | Pause / resume | **Space** or the playback button |
 | Stop and reset position | Stop button |
 | Toggle sidebar | **⌃⌘S** |
@@ -66,18 +70,16 @@ The inspector follows the selected row; the playback bar follows the currently p
 
 ```text
 SwiftUI / AppKit
-       │  C ABI: commands + copied snapshots
-       ▼
-Rust playback worker
-       │  Symphonia decoding through rodio
-       ▼
-cpal → CoreAudio → default output device
+  ├─ Audio bridge queue → Rust playback worker → rodio / cpal / CoreAudio
+  └─ Library bridge queue → Rust library worker → LibraryStore / system SQLite
 ```
 
-One Rust crate owns the playback backend. A bounded command queue keeps file and device setup off the main UI thread. Accepted loads advance a generation fence so superseded work cannot publish old metadata. Swift serializes bridge calls and destroys the engine on a background queue.
+One Rust crate owns playback and the separate `LibraryStore`. A dedicated library worker owns system SQLite and scans one file between command checks. A second Swift bridge queue owns library calls and shutdown. The UI loads saved metadata without rescanning audio. Searches bind parameters; paged C responses use caller-owned buffers. WAL with synchronous FULL retains each completed import if indexing is cancelled or interrupted. Missing records remain in the library; moved/renamed files create a new path identity on rescan.
+
+The Rust crate owns the playback backend. A bounded command queue keeps file and device setup off the main UI thread. Accepted loads advance a generation fence so superseded work cannot publish old metadata. Swift serializes bridge calls and destroys the engine on a background queue.
 
 ```text
-crates/engine/     Playback, state model, C exports and Rust tests
+crates/engine/     Playback, library store/scanner/worker, C exports and tests
 macos/App/        App lifecycle, observable state and bridge ownership
 macos/Views/      SwiftUI layout and AppKit track table
 macos/Bridge/     C header and Swift module maps
@@ -110,7 +112,7 @@ clang -fsyntax-only -x c macos/Bridge/include/reson.h
 plutil -lint build/Reson.app/Contents/Info.plist
 ```
 
-The v0.1.1 validation passed **28 Rust tests and 9 Swift tests**, plus the release build and checks above. Rust tests run without an audio output device.
+The v0.2 validation results and reproducible benchmarks are recorded in [validation-v0.2.md](docs/validation-v0.2.md). Rust tests run without an audio output device.
 
 Fixtures are checked in; regenerating them requires Python 3 and ffmpeg:
 
@@ -131,16 +133,14 @@ This plays a synthetic tone on the default output device. It verifies engine beh
 
 ## Next milestones
 
-1. Folder import, metadata indexing, persistence and search/sorting.
+1. Artwork caching and further native interface polish (v0.2.1).
 2. Persistent playlists, ordering, a separate queue and M3U8 import/export.
-3. Artwork caching and further native interface polish.
-4. Seeking, output-device selection, gapless playback and audio-path verification.
-5. Performance measurements and optimization based on the [benchmark protocol](docs/benchmarks.md).
+3. Seeking, output-device selection, gapless playback and audio-path verification.
 
-No startup, memory or CPU benchmark results are claimed yet. Compact-window resizing and older macOS compatibility still need validation.
+Library benchmarks cover 270, 5,000 and 25,000 synthetic metadata records. Full Unicode case folding, automatic file watching and moved-file relinking are deferred. Older macOS compatibility and audible output remain unverified.
 
 ## License
 
 A license for original Reson code has not yet been selected; MIT is proposed. Until a license is added, this repository should not be treated as MIT-licensed.
 
-Dependencies retain their own licenses, including rodio/cpal (MIT or Apache-2.0), Symphonia (MPL-2.0) and serde_json (MIT or Apache-2.0). Fixtures are original synthetic audio; no third-party music, artwork or application code is included.
+Dependencies retain their own licenses, including rodio/cpal (MIT or Apache-2.0), Symphonia (MPL-2.0) serde/serde_json (MIT or Apache-2.0), rusqlite (MIT), and system SQLite (public domain). Fixtures are original synthetic audio; no third-party music, artwork or application code is included.

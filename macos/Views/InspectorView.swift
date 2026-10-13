@@ -7,7 +7,7 @@ struct InspectorView: View {
                 Text("TRACK DETAILS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                 ZStack { RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.035)); Image(systemName: "waveform").font(.system(size: 48, weight: .ultraLight)).foregroundStyle(.secondary) }.frame(height: 190)
                 if let track {
-                    VStack(alignment: .leading, spacing: 6) { Text(track.displayTitle).font(.system(size: 18, weight: .semibold)); Text(track.artist ?? "Unknown artist").foregroundStyle(.secondary) }
+                    VStack(alignment: .leading, spacing: 6) { Text(track.displayTitle).font(.system(size: 18, weight: .semibold)); Text(track.artist ?? "—").foregroundStyle(.secondary) }
                     Divider()
                     row("Album", track.album ?? "—")
                     row("Format", track.format)
@@ -15,7 +15,10 @@ struct InspectorView: View {
                     row("Sample rate", track.rate == 0 ? "—" : String(format: "%.1f kHz", Double(track.rate)/1000))
                     row("Channels", track.channels == 0 ? "—" : "\(track.channels)")
                     row("Duration", timeLabel(track.duration))
-                    row("BPM / Key", "—")
+                    row("Genre", track.genre ?? "—")
+                    row("BPM", track.bpm.map { String(format: "%g", $0) } ?? "—")
+                    row("Key", track.key ?? "—")
+                    if track.missing { Text("File missing. Reconnect the drive or rescan after restoring it.").font(.system(size: 12)).foregroundStyle(.orange) }
                     Divider()
                     Text("FILE LOCATION").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                     Text(track.path).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)

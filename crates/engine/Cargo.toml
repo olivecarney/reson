@@ -1,6 +1,6 @@
 [package]
 name = "reson-engine"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 [lib]
 crate-type = ["staticlib", "rlib"]
@@ -8,3 +8,7 @@ crate-type = ["staticlib", "rlib"]
 rodio = { version = "=0.23.0", default-features = false, features = ["playback", "flac", "wav"] }
 symphonia = { version = "0.5", default-features = false, features = ["flac", "wav", "pcm"] }
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+rusqlite = { version = "=0.40.2", default-features = false }
+[dev-dependencies]
+tempfile = "3"
