@@ -49,3 +49,25 @@ extension EngineBridgeTests {
         await bridge.shutdown()
     }
 }
+
+extension EngineBridgeTests {
+    func testLazyEngineRestoresMutedZeroAndRememberedVolume() async throws {
+        let bridge=EngineBridge(initialVolume:0,initialMuted:true,initialPreviousVolume:0.37)
+        let receipt=try await bridge.command(control:["op":"mute","value":false])
+        var s=try await bridge.snapshot()
+        for _ in 0..<100 where s.acknowledged < receipt.sequence {try await Task.sleep(for:.milliseconds(2));s=try await bridge.snapshot()}
+        XCTAssertEqual(s.volume,0.37,accuracy:0.00001); XCTAssertFalse(s.muted)
+        await bridge.shutdown()
+    }
+}
+
+extension EngineBridgeTests {
+    func testSavedZeroGainDoesNotUnmuteDuringEngineCreation() async throws {
+        let bridge=EngineBridge(initialVolume:0,initialMuted:false,initialPreviousVolume:0.37)
+        let receipt=try await bridge.command(action:0)
+        var s=try await bridge.snapshot()
+        for _ in 0..<100 where s.acknowledged < receipt.sequence {try await Task.sleep(for:.milliseconds(2));s=try await bridge.snapshot()}
+        XCTAssertEqual(s.volume,0); XCTAssertFalse(s.muted)
+        await bridge.shutdown()
+    }
+}

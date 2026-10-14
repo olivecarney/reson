@@ -53,7 +53,7 @@ struct ContentView: View {
             if let notice=model.notice {
                 HStack {Image(systemName:"info.circle");Text(notice).font(.system(size:12));Spacer();Button("Dismiss") {model.notice=nil}}.padding(12).foregroundStyle(.secondary)
             }
-            if let error = model.message ?? model.playback.error ?? model.playback.outputNotice {
+            if let error = model.message ?? model.playback.operationError ?? model.playback.error ?? model.playback.outputNotice {
                 HStack { Image(systemName: "exclamationmark.circle"); Text(error).font(.system(size: 12)); Spacer(); Button("Open File…") { model.openFile() } }
                     .padding(12).background(Color.orange.opacity(0.12)).foregroundStyle(.orange)
             }
@@ -109,7 +109,7 @@ struct ContentView: View {
             PlaylistSidebar(playlists:model.playlists,selection:model.selectedPlaylistID,select:{model.selectPlaylist($0)},rename:{model.promptPlaylist($0)},delete:model.confirmDeletePlaylist,export:{model.exportM3U8($0)},add:{model.insertTrackIDs($0,to:$1)},editingEnabled:!model.playlistBusy).padding(.horizontal,6)
             Button {model.showQueue=true} label:{Label("Play Queue (\(model.session.queue.count))",systemImage:"list.bullet")}.buttonStyle(.plain).padding(20)
             Spacer()
-            Text("LOCAL MUSIC · v0.3").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
+            Text("LOCAL MUSIC · v0.4").font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary).padding(20)
         }.frame(maxHeight: .infinity).background(.ultraThinMaterial)
     }
 }

@@ -28,3 +28,14 @@ extension PlaybackSnapshotTests {
         XCTAssertEqual(snapshot.stateLabel, "Playing")
     }
 }
+
+extension PlaybackSnapshotTests {
+    func testTransportRefreshTightensOnlyNearEOFOrPendingCommands() {
+        var s=PlaybackSnapshot();s.state=2;s.duration=45;s.position=10;s.acknowledged=4
+        XCTAssertEqual(s.refreshMilliseconds(expected:4),250)
+        s.position=44.7;XCTAssertEqual(s.refreshMilliseconds(expected:4),100)
+        s.state=3;XCTAssertEqual(s.refreshMilliseconds(expected:4),1000)
+        XCTAssertEqual(s.refreshMilliseconds(expected:5),100)
+        s.state=4;XCTAssertFalse(s.needsRefresh(expected:4))
+    }
+}
