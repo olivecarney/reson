@@ -33,7 +33,19 @@ pub struct Snapshot {
     pub output_channels: Option<u16>,
     pub output_sample_format: Option<String>,
     pub acknowledged: u64,
+    pub volume: f32,
+    pub muted: bool,
+    pub preferred_device: Option<String>,
+    pub devices: Vec<OutputDevice>,
+    pub operation_error: Option<String>,
+    pub seek_request: u64,
 }
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct OutputDevice {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug)]
 pub enum Command {
     Load(PathBuf),
@@ -41,14 +53,27 @@ pub enum Command {
     Pause,
     Stop,
     Shutdown,
+    Seek { seconds: f64, generation: u64 },
+    Volume(f32),
+    Mute(bool),
+    Device(Option<String>),
+    RefreshDevices,
 }
 impl Snapshot {
     pub fn begin_load(&mut self, path: String) {
         let generation = self.generation + 1;
         let acknowledged = self.acknowledged;
+        let volume = self.volume;
+        let muted = self.muted;
+        let preferred_device = self.preferred_device.clone();
+        let devices = self.devices.clone();
         *self = Self {
             generation,
             acknowledged,
+            volume,
+            muted,
+            preferred_device,
+            devices,
             path,
             state: PlaybackState::Loading,
             ..Self::default()
@@ -79,16 +104,27 @@ impl Snapshot {
             _ => {}
         }
     }
+    fn clear_output(&mut self) {
+        self.output_rate = None;
+        self.output_channels = None;
+        self.output_sample_format = None;
+    }
     pub fn stop(&mut self) {
+        self.clear_output();
         if !self.path.is_empty() {
             self.state = PlaybackState::Stopped;
             self.position_seconds = 0.0;
         }
     }
     pub fn end(&mut self) {
+        self.clear_output();
+        if let Some(duration) = self.duration_seconds {
+            self.position_seconds = duration;
+        }
         self.state = PlaybackState::Ended;
     }
     pub fn fail(&mut self, message: String) {
+        self.clear_output();
         self.state = PlaybackState::Error;
         self.error = Some(message);
     }

@@ -114,6 +114,51 @@ command!(reson_engine_play, Command::Play);
 command!(reson_engine_pause, Command::Pause);
 command!(reson_engine_stop, Command::Stop);
 /// # Safety
+/// Handle must be live and serialized; json references length readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn reson_engine_control(
+    handle: *mut ResonEngine,
+    json: *const u8,
+    length: usize,
+) -> i32 {
+    guard(|| {
+        if handle.is_null() || json.is_null() || length == 0 || length > 4096 {
+            return 1;
+        }
+        let bytes = unsafe { std::slice::from_raw_parts(json, length) };
+        let Ok(value) = serde_json::from_slice::<serde_json::Value>(bytes) else {
+            return 1;
+        };
+        let command = match value["op"].as_str() {
+            Some("seek") => match (value["seconds"].as_f64(), value["generation"].as_u64()) {
+                (Some(seconds), Some(generation)) => Command::Seek {
+                    seconds,
+                    generation,
+                },
+                _ => return 1,
+            },
+            Some("volume") => match value["value"].as_f64() {
+                Some(v) if v.is_finite() => Command::Volume(v.clamp(0.0, 1.0) as f32),
+                _ => return 1,
+            },
+            Some("mute") => match value["value"].as_bool() {
+                Some(v) => Command::Mute(v),
+                _ => return 1,
+            },
+            Some("device") => match &value["id"] {
+                serde_json::Value::Null => Command::Device(None),
+                serde_json::Value::String(id) if !id.is_empty() => {
+                    Command::Device(Some(id.clone()))
+                }
+                _ => return 1,
+            },
+            Some("devices") => Command::RefreshDevices,
+            _ => return 1,
+        };
+        status(unsafe { &mut *handle }.engine.send(command))
+    })
+}
+/// # Safety
 /// Handle must be live and serialized. out/required must be writable and aligned.
 /// text must have capacity writable bytes, or be null with capacity zero. Buffers must not overlap.
 #[no_mangle]
@@ -134,7 +179,7 @@ pub unsafe extern "C" fn reson_engine_snapshot(
             return 1;
         }
         let s = unsafe { &*handle }.engine.snapshot();
-        let json = serde_json::json!({"path":s.path,"title":s.title,"artist":s.artist,"album":s.album,"format":s.format,"error":s.error,"failure_kind":s.failure_kind,"output_notice":s.output_notice,"output_rate":s.output_rate,"output_channels":s.output_channels,"output_sample_format":s.output_sample_format});
+        let json = serde_json::json!({"path":s.path,"title":s.title,"artist":s.artist,"album":s.album,"format":s.format,"error":s.error,"failure_kind":s.failure_kind,"output_notice":s.output_notice,"output_rate":s.output_rate,"output_channels":s.output_channels,"output_sample_format":s.output_sample_format,"volume":s.volume,"muted":s.muted,"preferred_device":s.preferred_device,"devices":s.devices,"operation_error":s.operation_error});
         let Ok(bytes) = serde_json::to_vec(&json) else {
             return 5;
         };

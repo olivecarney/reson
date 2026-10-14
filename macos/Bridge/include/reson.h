@@ -22,6 +22,10 @@ int32_t reson_engine_load(ResonEngine *engine, const uint8_t *path, size_t lengt
 int32_t reson_engine_play(ResonEngine *engine);
 int32_t reson_engine_pause(ResonEngine *engine);
 int32_t reson_engine_stop(ResonEngine *engine);
+/* Control JSON (max 4096 bytes): seek(seconds,generation), volume(value),
+   mute(value), device(id=null for System Default or CPAL ID), devices.
+   Commands acknowledge in snapshot; operation_error is recoverable. */
+int32_t reson_engine_control(ResonEngine *engine, const uint8_t *json, size_t length);
 /* JSON text plus NUL; required includes NUL. Query with text=NULL, capacity=0.
    Scalars are copied even when text is too small. Retry if text grew.
    JSON error is fatal; optional failure_kind distinguishes file/output failure.

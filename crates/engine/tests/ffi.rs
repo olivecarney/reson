@@ -72,3 +72,44 @@ fn destroy_after_queued_commands() {
         reson_engine_destroy(e);
     }
 }
+
+#[test]
+fn controls_validate_json_and_acknowledge_gain_without_an_output_stream() {
+    unsafe {
+        let e = create();
+        for json in [
+            r#"{"op":"seek","seconds":null,"generation":1}"#,
+            r#"{"op":"mute","value":4}"#,
+            r#"{"op":"device","id":0}"#,
+            r#"{"op":"unknown"}"#,
+        ] {
+            assert_eq!(reson_engine_control(e, json.as_ptr(), json.len()), 1);
+        }
+        let json = br#"{"op":"volume","value":0.25}"#;
+        assert_eq!(reson_engine_control(e, json.as_ptr(), json.len()), 0);
+        let mut scalars = ResonSnapshot::default();
+        let mut needed = 0;
+        for _ in 0..100 {
+            reson_engine_snapshot(e, &mut scalars, ptr::null_mut(), 0, &mut needed);
+            if scalars.acknowledged == 1 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        let mut bytes = vec![0; needed + 100];
+        assert_eq!(
+            reson_engine_snapshot(
+                e,
+                &mut scalars,
+                bytes.as_mut_ptr(),
+                bytes.len(),
+                &mut needed
+            ),
+            0
+        );
+        let s: serde_json::Value = serde_json::from_slice(&bytes[..needed - 1]).unwrap();
+        assert_eq!(s["volume"], 0.25);
+        assert_eq!(scalars.state, 0);
+        reson_engine_destroy(e);
+    }
+}
