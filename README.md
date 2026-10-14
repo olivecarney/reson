@@ -4,9 +4,9 @@ A lightweight native macOS player for local lossless music.
 
 Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-**Status: v0.3 persistent playlists and playback queues.** Organise local FLAC/WAV tracks, play a stable sequence, manage an independent queue and exchange M3U8 playlists.
+**Status: v0.4 playback and audio refinements.** Seek and scrub local FLAC/WAV tracks, adjust app volume/mute, select output devices, and inspect source versus output formats. Persistent playlists, independent queues and M3U8 exchange remain available.
 
-See [playlist behaviour and controls](docs/playlists-v0.3.md) and [v0.3 validation and measurements](docs/validation-v0.3.md).
+See [audio behaviour and controls](docs/audio-v0.4.md), [v0.4 validation and measurements](docs/validation-v0.4.md), and [playlist behaviour](docs/playlists-v0.3.md).
 
 v0.2 adds a background Rust library worker using macOS system SQLite through `rusqlite`, without bundled SQLite. See the [library design](docs/library-v0.2.md), [validation and measurements](docs/validation-v0.2.md), and [database decision](docs/spikes/system-sqlite.md).
 
@@ -68,6 +68,10 @@ The project requests macOS 14 or later. The initial build machine's Homebrew Rus
 | Play a track | Double-click its row |
 | Pause / resume | **Space** or the playback button |
 | Stop and reset position | Stop button |
+| Seek / scrub | Click or drag the timeline; arrow keys ±5 seconds, Home/End |
+| App gain / mute | Volume slider / speaker button; saved between launches |
+| Output selection / recovery | Speaker device menu; Refresh Devices / Retry Selected Output |
+| Source and output diagnostics | Transport info button |
 | Create playlist | **⌘N** |
 | Import / export M3U8 | **⇧⌘I** / **⇧⌘E** |
 | Show queue | **⌘J** |
@@ -105,7 +109,7 @@ The [C header](macos/Bridge/include/reson.h) documents pointer ownership, buffer
 
 ## Audio behaviour
 
-Lossless input does **not** imply bit-perfect output. The prototype uses the default output device and reports source properties separately from the configured output stream. Live checks observed 44.1 kHz sources feeding a 48 kHz stereo F32 stream, involving rate conversion.
+Lossless input does **not** imply bit-perfect output. The player supports System Default and explicitly selected outputs and reports source properties separately from the configured output stream. Live checks observed 44.1 kHz sources feeding a 48 kHz stereo F32 stream, involving rate conversion.
 
 Rodio can read files, decode, allocate and lock through its output callback path. Strict real-time guarantees are not met by this prototype. Pause retains the output stream; Stop and EOF release it. Shutdown waits for in-flight file/device operations on a background queue.
 
@@ -144,11 +148,21 @@ cargo run --release -p reson-engine --example live_check -- build/check.wav buil
 
 This plays a synthetic tone on the default output device. It verifies engine behaviour, not physical output precision.
 
+For the v0.4 opt-in silent native checks and muted transition benchmark:
+
+```sh
+python3 scripts/generate-v0.4-fixtures.py build/v0.4-audio
+RESON_AUDIO_FIXTURES="$PWD/build/v0.4-audio" RESON_NATIVE_PLAYBACK_TEST=1 swift test --package-path macos --filter 'AudioRefinementIntegrationTests|TransitionIntegrationTests|PlaylistIntegrationTests'
+cargo run --release -p reson-engine --example audio_bench -- build/v0.4-audio
+```
+
+System Default is selected at each launch. Explicit devices do not silently fall back when unavailable. Gain/mute persist through local preferences; no global output or volume settings are changed. True gapless playback remains deferred with measured timing evidence.
+
 ## Next milestones
 
-1. Seeking, output-device selection and audio-path verification.
-2. Gapless playback and further library organisation.
-3. Broader native UX refinement (v0.5).
+1. Broader native UX refinement (v0.5).
+2. Further library organisation.
+3. True gapless playback after an architecture and captured-continuity investigation.
 
 Library benchmarks cover 270, 5,000 and 25,000 synthetic metadata records. Full Unicode case folding, automatic file watching and moved-file relinking are deferred. Older macOS compatibility and audible output remain unverified.
 

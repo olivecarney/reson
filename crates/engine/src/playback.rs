@@ -1,4 +1,6 @@
 use crate::state::{Command, PlaybackState, Snapshot};
+use rodio::cpal::traits::{DeviceTrait, HostTrait};
+use rodio::Source;
 use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Player};
 use std::{
     fs::File,
@@ -132,7 +134,70 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
     info.album = info.album.filter(|text| !text.is_empty());
     Ok(info)
 }
+pub fn output_devices() -> Result<Vec<crate::state::OutputDevice>, EngineError> {
+    rodio::cpal::default_host()
+        .output_devices()
+        .map_err(|e| EngineError::Output(e.to_string()))?
+        .map(|d| {
+            Ok(crate::state::OutputDevice {
+                id: d
+                    .id()
+                    .map_err(|e| EngineError::Output(e.to_string()))?
+                    .to_string(),
+                name: d
+                    .description()
+                    .map_err(|e| EngineError::Output(e.to_string()))?
+                    .name()
+                    .to_owned(),
+            })
+        })
+        .collect()
+}
+
+pub fn prepared_decoder(
+    path: &Path,
+    seconds: f64,
+) -> Result<Decoder<std::io::BufReader<File>>, EngineError> {
+    if !seconds.is_finite() || seconds < 0.0 {
+        return Err(EngineError::InvalidInput(
+            "Seek position must be finite and nonnegative".into(),
+        ));
+    }
+    let file = File::open(path).map_err(|e| EngineError::Io(e.to_string()))?;
+    let mut decoder = Decoder::try_from(file).map_err(|e| EngineError::Decode(e.to_string()))?;
+    if seconds > 0.0 {
+        if seconds
+            > decoder
+                .total_duration()
+                .map(|d| d.as_secs_f64())
+                .unwrap_or(u32::MAX as f64)
+        {
+            return Err(EngineError::InvalidInput(
+                "Seek exceeds source duration".into(),
+            ));
+        }
+        // Symphonia floors time to frames. A midpoint avoids nanosecond rounding
+        // just below an exact frame boundary (e.g. frame 13 at 48 kHz).
+        decoder
+            .try_seek(Duration::from_secs_f64(
+                (seconds * decoder.sample_rate().get() as f64).round()
+                    / decoder.sample_rate().get() as f64
+                    + 0.5 / decoder.sample_rate().get() as f64,
+            ))
+            .map_err(|e| EngineError::Decode(format!("Seek failed: {e}")))?;
+    }
+    Ok(decoder)
+}
+
 trait Backend {
+    fn seek(&mut self, _path: &Path, _seconds: f64, _paused: bool) -> Result<(), EngineError> {
+        Err(EngineError::Decode("Seeking unavailable".into()))
+    }
+    fn gain(&mut self, _gain: f32) {}
+    fn device(&mut self, _id: Option<String>) {}
+    fn devices(&mut self) -> Result<Vec<crate::state::OutputDevice>, EngineError> {
+        output_devices()
+    }
     fn load(&mut self, path: &Path) -> Result<Snapshot, EngineError>;
     fn play(&mut self);
     fn pause(&mut self);
@@ -142,22 +207,71 @@ trait Backend {
         None
     }
 }
+// Player::stop is serviced periodically by rodio. This inexpensive fence
+// prevents its retired decoder contributing samples to a replacement player.
+struct FencedSource<S> {
+    inner: S,
+    active: Arc<AtomicBool>,
+}
+impl<S: Source> Iterator for FencedSource<S> {
+    type Item = f32;
+    fn next(&mut self) -> Option<f32> {
+        if self.active.load(Ordering::Acquire) {
+            self.inner.next()
+        } else {
+            None
+        }
+    }
+}
+impl<S: Source> Source for FencedSource<S> {
+    fn current_span_len(&self) -> Option<usize> {
+        self.inner.current_span_len()
+    }
+    fn channels(&self) -> rodio::ChannelCount {
+        self.inner.channels()
+    }
+    fn sample_rate(&self) -> rodio::SampleRate {
+        self.inner.sample_rate()
+    }
+    fn total_duration(&self) -> Option<Duration> {
+        self.inner.total_duration()
+    }
+}
 #[derive(Default)]
 struct RodioBackend {
     player: Option<Player>,
     stream: Option<MixerDeviceSink>,
     output_events: Option<OutputEvents>,
+    source_active: Option<Arc<AtomicBool>>,
+    preferred: Option<String>,
+    gain: f32,
+    offset: f64,
 }
 impl Backend for RodioBackend {
     fn load(&mut self, path: &Path) -> Result<Snapshot, EngineError> {
         self.stop();
         let mut info = probe(path)?;
-        let file = File::open(path).map_err(|e| EngineError::Io(e.to_string()))?;
-        let decoder = Decoder::try_from(file).map_err(|e| EngineError::Decode(e.to_string()))?;
+        let decoder = prepared_decoder(path, 0.0)?;
+        self.offset = 0.0;
         let (callback, events) = output_events();
+        let host = rodio::cpal::default_host();
+        let device = if let Some(id) = &self.preferred {
+            host.output_devices()
+                .map_err(|e| EngineError::Output(e.to_string()))?
+                .find(|d| d.id().is_ok_and(|candidate| candidate.to_string() == *id))
+                .ok_or_else(|| {
+                    EngineError::Output(
+                        "Selected output is unavailable; reconnect it or select System Default"
+                            .into(),
+                    )
+                })?
+        } else {
+            host.default_output_device()
+                .ok_or_else(|| EngineError::Output("No default output device".into()))?
+        };
         let mut stream = configure_output(
-            DeviceSinkBuilder::from_default_device()
-                .map_err(|e| EngineError::Output(format!("Default output configuration: {e}")))?,
+            DeviceSinkBuilder::from_device(device)
+                .map_err(|e| EngineError::Output(format!("Output configuration: {e}")))?,
         )
         .with_error_callback(callback)
         .open_stream()
@@ -167,11 +281,56 @@ impl Backend for RodioBackend {
         info.output_channels = Some(stream.config().channel_count().get());
         info.output_sample_format = Some(format!("{:?}", stream.config().sample_format()));
         let player = Player::connect_new(stream.mixer());
-        player.append(decoder);
+        player.pause();
+        player.set_volume(self.gain);
+        let active = Arc::new(AtomicBool::new(true));
+        player.append(FencedSource {
+            inner: decoder,
+            active: active.clone(),
+        });
+        self.source_active = Some(active);
         self.player = Some(player);
         self.stream = Some(stream);
         self.output_events = Some(events);
         Ok(info)
+    }
+    fn seek(&mut self, path: &Path, seconds: f64, paused: bool) -> Result<(), EngineError> {
+        // Prepare and seek off the callback. Failure leaves the existing player intact.
+        let decoder = prepared_decoder(path, seconds)?;
+        let stream = self
+            .stream
+            .as_ref()
+            .ok_or_else(|| EngineError::Output("No active output; press Play to recover".into()))?;
+        if let Some(active) = self.source_active.take() {
+            active.store(false, Ordering::Release);
+        }
+        if let Some(old) = self.player.take() {
+            old.stop();
+        }
+        let player = Player::connect_new(stream.mixer());
+        player.pause();
+        player.set_volume(self.gain);
+        let active = Arc::new(AtomicBool::new(true));
+        player.append(FencedSource {
+            inner: decoder,
+            active: active.clone(),
+        });
+        self.source_active = Some(active);
+        if !paused {
+            player.play();
+        }
+        self.player = Some(player);
+        self.offset = seconds;
+        Ok(())
+    }
+    fn gain(&mut self, gain: f32) {
+        self.gain = gain;
+        if let Some(player) = &self.player {
+            player.set_volume(gain);
+        }
+    }
+    fn device(&mut self, id: Option<String>) {
+        self.preferred = id;
     }
     fn play(&mut self) {
         if let Some(p) = &self.player {
@@ -184,6 +343,9 @@ impl Backend for RodioBackend {
         }
     }
     fn stop(&mut self) {
+        if let Some(active) = self.source_active.take() {
+            active.store(false, Ordering::Release);
+        }
         if let Some(p) = self.player.take() {
             p.stop();
         }
@@ -219,7 +381,7 @@ impl Backend for RodioBackend {
         Ok(self
             .player
             .as_ref()
-            .map(|p| (p.get_pos().as_secs_f64(), p.empty()))
+            .map(|p| (self.offset + p.get_pos().as_secs_f64(), p.empty()))
             .unwrap_or((0.0, true)))
     }
 }
@@ -270,7 +432,10 @@ impl Engine {
         factory: F,
     ) -> Result<Self, EngineError> {
         let (tx, rx) = mpsc::sync_channel(16);
-        let shared = Arc::new(Mutex::new(Snapshot::default()));
+        let shared = Arc::new(Mutex::new(Snapshot {
+            volume: 1.0,
+            ..Snapshot::default()
+        }));
         let copy = shared.clone();
         let closing = Arc::new(AtomicBool::new(false));
         let close = closing.clone();
@@ -296,6 +461,16 @@ impl Engine {
         })
     }
     pub fn send(&mut self, command: Command) -> Result<(), EngineError> {
+        if self.closing.load(Ordering::Relaxed) {
+            return Err(EngineError::Disconnected);
+        }
+        if matches!(command, Command::Seek { seconds, .. } if !seconds.is_finite())
+            || matches!(command, Command::Volume(v) if !v.is_finite())
+        {
+            return Err(EngineError::InvalidInput(
+                "Position and volume must be finite".into(),
+            ));
+        }
         let mut s = lock(&self.shared);
         let command = if matches!(command, Command::Play)
             && matches!(
@@ -309,7 +484,11 @@ impl Engine {
             command
         };
         let sequence = self.sequence + 1;
-        let generation = s.generation + u64::from(matches!(command, Command::Load(_)));
+        let generation =
+            s.generation + u64::from(matches!(command, Command::Load(_) | Command::Stop));
+        let seek =
+            matches!(command, Command::Seek { generation, .. } if generation == s.generation);
+        let stop = matches!(command, Command::Stop);
         let path = if let Command::Load(p) = &command {
             Some(p.to_string_lossy().into_owned())
         } else {
@@ -328,6 +507,12 @@ impl Engine {
                 TrySendError::Disconnected(_) => EngineError::Disconnected,
             })?;
         self.sequence = sequence;
+        if seek {
+            s.seek_request = sequence;
+        }
+        if stop {
+            s.generation = generation;
+        }
         if let Some(path) = path {
             s.begin_load(path);
         }
@@ -356,7 +541,12 @@ fn run_worker<B: Backend>(
     shared: &Mutex<Snapshot>,
     closing: &AtomicBool,
 ) {
+    let mut volume = 1.0_f32;
+    let mut remembered = 1.0_f32;
+    let mut muted = false;
+    let mut preferred = None;
     let mut active_generation = 0;
+    backend.gain(1.0);
     let mut playing = false;
     let mut output_active = false;
     while !closing.load(Ordering::Relaxed) {
@@ -372,7 +562,15 @@ fn run_worker<B: Backend>(
                     break;
                 }
                 // A newer accepted load supersedes old queued work without changing command ordering.
-                if env.generation != lock(shared).generation {
+                if env.generation != lock(shared).generation
+                    && !matches!(
+                        env.command,
+                        Command::Volume(_)
+                            | Command::Mute(_)
+                            | Command::Device(_)
+                            | Command::RefreshDevices
+                    )
+                {
                     continue;
                 }
                 let load_path = match &env.command {
@@ -404,23 +602,32 @@ fn run_worker<B: Backend>(
                         None
                     };
                     let mut s = lock(shared);
-                    if s.generation != env.generation {
+                    if s.generation != env.generation || closing.load(Ordering::Relaxed) {
                         drop(s);
                         backend.stop();
                         continue;
                     }
                     match result {
                         Ok(mut info) => {
+                            info.volume = volume;
+                            info.muted = muted;
+                            info.preferred_device = preferred.clone();
+                            info.devices = s.devices.clone();
                             info.generation = env.generation;
                             info.state = PlaybackState::Playing;
                             info.acknowledged = env.sequence;
                             *s = info;
+                            backend.play();
                             playing = true;
                             output_active = true;
                             active_generation = env.generation;
                         }
                         Err(e) => {
                             if let Some(mut info) = fallback {
+                                info.volume = volume;
+                                info.muted = muted;
+                                info.preferred_device = preferred.clone();
+                                info.devices = s.devices.clone();
                                 info.generation = env.generation;
                                 *s = info;
                             }
@@ -440,7 +647,100 @@ fn run_worker<B: Backend>(
                         }
                     }
                 } else {
+                    let mut operation_error = None;
+                    let mut seek_position = None;
+                    let mut device_info = None;
+                    let mut device_position = None;
                     match &env.command {
+                        Command::Volume(v) => {
+                            volume = v.clamp(0.0, 1.0);
+                            if volume > 0.0 {
+                                remembered = volume;
+                                muted = false;
+                            }
+                            backend.gain(if muted { 0.0 } else { volume });
+                        }
+                        Command::Mute(value) => {
+                            muted = *value;
+                            if !muted && volume == 0.0 {
+                                volume = remembered;
+                            }
+                            backend.gain(if muted { 0.0 } else { volume });
+                        }
+                        Command::RefreshDevices => match backend.devices() {
+                            Ok(devices) => lock(shared).devices = devices,
+                            Err(e) => operation_error = Some(e.to_string()),
+                        },
+                        Command::Seek {
+                            seconds,
+                            generation,
+                        } => {
+                            let s = lock(shared).clone();
+                            if *generation == s.generation
+                                && env.sequence == s.seek_request
+                                && matches!(s.state, PlaybackState::Playing | PlaybackState::Paused)
+                            {
+                                let end = s.duration_seconds.unwrap_or(u32::MAX as f64).max(0.0);
+                                // Keep one source frame before EOF so a seek itself cannot consume the queue.
+                                let target = seconds.clamp(
+                                    0.0,
+                                    (end - 1.0 / s.sample_rate.unwrap_or(44100) as f64).max(0.0),
+                                );
+                                let rate = s.sample_rate.unwrap_or(44100) as f64;
+                                let target = (target * rate).round() / rate;
+                                match backend.seek(Path::new(&s.path), target, !playing) {
+                                    Ok(()) => seek_position = Some(target),
+                                    Err(e) => operation_error = Some(e.to_string()),
+                                }
+                            }
+                        }
+                        Command::Device(id) => {
+                            preferred = id.clone();
+                            backend.device(id.clone());
+                            let s = lock(shared).clone();
+                            if (output_active
+                                || (s.state == PlaybackState::Error
+                                    && s.failure_kind.as_deref() == Some("output")))
+                                && !s.path.is_empty()
+                                && env.generation == s.generation
+                            {
+                                backend.pause();
+                                let position = if output_active {
+                                    backend
+                                        .poll()
+                                        .map(|(pos, _)| pos)
+                                        .unwrap_or(s.position_seconds)
+                                } else {
+                                    s.position_seconds
+                                };
+                                let rate = s.sample_rate.unwrap_or(44100) as f64;
+                                let position = position.min(
+                                    (s.duration_seconds.unwrap_or(u32::MAX as f64) - 1.0 / rate)
+                                        .max(0.0),
+                                );
+                                backend.stop();
+                                output_active = false;
+                                let result = backend.load(Path::new(&s.path)).and_then(|info| {
+                                    backend.pause();
+                                    backend.seek(Path::new(&s.path), position, !playing)?;
+                                    Ok(info)
+                                });
+                                match result {
+                                    Ok(info) => {
+                                        device_position = Some(position);
+                                        device_info = Some(info);
+                                        output_active = true;
+                                        active_generation = env.generation;
+                                    }
+                                    Err(e) => {
+                                        backend.stop();
+                                        operation_error = Some(e.to_string());
+                                        playing = false;
+                                    }
+                                }
+                            }
+                        }
+
                         Command::Play => backend.play(),
                         Command::Pause => backend.pause(),
                         Command::Stop => {
@@ -450,10 +750,15 @@ fn run_worker<B: Backend>(
                         _ => {}
                     }
                     let mut s = lock(shared);
-                    if s.generation != env.generation {
+                    if s.generation != env.generation || closing.load(Ordering::Relaxed) {
                         continue;
                     }
-                    match env.command {
+                    if matches!(env.command, Command::Seek { .. }) && env.sequence != s.seek_request
+                    {
+                        s.acknowledged = env.sequence;
+                        continue;
+                    }
+                    match &env.command {
                         Command::Play => {
                             s.play();
                             playing = s.state == PlaybackState::Playing;
@@ -468,6 +773,35 @@ fn run_worker<B: Backend>(
                         }
                         _ => {}
                     }
+                    s.volume = volume;
+                    s.muted = muted;
+                    s.preferred_device = preferred.clone();
+                    if let Some(position) = device_position {
+                        s.position_seconds = position;
+                    }
+                    if let Some(info) = device_info {
+                        s.state = if playing {
+                            PlaybackState::Playing
+                        } else {
+                            PlaybackState::Paused
+                        };
+                        s.error = None;
+                        s.failure_kind = None;
+                        s.output_rate = info.output_rate;
+                        s.output_channels = info.output_channels;
+                        s.output_sample_format = info.output_sample_format;
+                        s.output_notice = None;
+                    }
+                    if env.sequence == s.seek_request {
+                        if let Some(pos) = seek_position {
+                            s.position_seconds = pos;
+                        }
+                    }
+                    if matches!(env.command, Command::Device(_)) && operation_error.is_some() {
+                        s.fail(operation_error.clone().unwrap());
+                        s.failure_kind = Some("output".into());
+                    }
+                    s.operation_error = operation_error;
                     s.acknowledged = env.sequence;
                 }
             }

@@ -65,3 +65,48 @@ fn blank_tags_remain_unknown_and_title_falls_back_to_filename() {
     assert_eq!(info.title, "fallback");
     assert_eq!(info.artist, None);
 }
+
+#[test]
+fn prepared_seeks_reach_exact_reference_samples_in_both_codecs() {
+    use reson_engine::playback::prepared_decoder;
+    // The original fixtures repeat four hand-checked PCM values.
+    for (bits, rate, channels) in [(16, 44100, 1), (24, 48000, 2)] {
+        for ext in ["wav", "flac"] {
+            let p = fixture(&format!("pcm{bits}-{rate}-{channels}.{ext}"));
+            for frame in [0, 13, rate / 20, rate / 10 - 2] {
+                let mut decoder = prepared_decoder(&p, frame as f64 / rate as f64).unwrap();
+                let index = (frame * channels as u32) % 4;
+                let expected =
+                    [0.0, 0.25, -0.25, 0.5 - 1.0 / (1u32 << (bits - 1)) as f32][index as usize];
+                assert!(
+                    (decoder.next().unwrap() - expected).abs() < 1e-7,
+                    "{ext} {rate} frame {frame}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn source_adaptation_to_48k_stereo_changes_samples_as_reported() {
+    // Characterize the rodio adaptation that the actual output mixer uses:
+    // 44.1k mono [0, .25, -.25] linearly interpolates to these first 48k frames.
+    let decoder =
+        reson_engine::playback::prepared_decoder(&fixture("pcm16-44100-1.flac"), 0.0).unwrap();
+    let output = rodio::source::UniformSourceIterator::new(
+        decoder,
+        std::num::NonZeroU16::new(2).unwrap(),
+        std::num::NonZeroU32::new(48000).unwrap(),
+    );
+    assert_eq!(output.channels().get(), 2);
+    assert_eq!(output.sample_rate().get(), 48000);
+    let samples: Vec<_> = output.collect();
+    assert!((9598..=9602).contains(&samples.len()));
+    for (actual, expected) in samples
+        .iter()
+        .take(6)
+        .zip([0.0, 0.0, 0.2296875, 0.2296875, -0.16875, -0.16875])
+    {
+        assert!((actual - expected).abs() < 1e-6, "{actual} != {expected}");
+    }
+}

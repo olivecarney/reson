@@ -3,8 +3,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 struct Fake {
     drops: Arc<AtomicUsize>,
     active: bool,
+    position: f64,
 }
 impl Backend for Fake {
+    fn seek(&mut self, _path: &Path, _seconds: f64, _paused: bool) -> Result<(), EngineError> {
+        self.position = _seconds;
+        Ok(())
+    }
     fn load(&mut self, path: &Path) -> Result<Snapshot, EngineError> {
         if path == Path::new("panic") {
             panic!("fixture panic");
@@ -16,6 +21,7 @@ impl Backend for Fake {
             return Err(EngineError::Output("no device".into()));
         }
         self.active = true;
+        self.position = 0.0;
         Ok(Snapshot {
             path: path.to_string_lossy().into(),
             title: path.to_string_lossy().into(),
@@ -31,7 +37,7 @@ impl Backend for Fake {
         }
     }
     fn poll(&mut self) -> Result<(f64, bool), EngineError> {
-        Ok((1.0, false))
+        Ok((self.position, false))
     }
 }
 fn engine() -> (Engine, Arc<AtomicUsize>) {
@@ -41,6 +47,7 @@ fn engine() -> (Engine, Arc<AtomicUsize>) {
         Engine::with_backend(move || Fake {
             drops: copy,
             active: false,
+            position: 0.0,
         })
         .unwrap(),
         drops,
@@ -547,5 +554,298 @@ fn eof_is_distinct_from_stop_and_output_failure_and_replay_has_new_generation() 
     e.send(Command::Load("fail".into())).unwrap();
     wait(&e, PlaybackState::Error);
     assert_eq!(e.snapshot().failure_kind.as_deref(), Some("output"));
+    e.shutdown().unwrap();
+}
+
+#[test]
+fn seek_is_generation_fenced_and_paused_position_is_preserved() {
+    let (mut e, _) = engine();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    let generation = e.snapshot().generation;
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    e.send(Command::Seek {
+        seconds: 12.5,
+        generation,
+    })
+    .unwrap();
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(e.snapshot().position_seconds, 12.5);
+    assert_eq!(e.snapshot().state, PlaybackState::Paused);
+    e.send(Command::Load("new".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Seek {
+        seconds: 8.0,
+        generation,
+    })
+    .unwrap();
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(e.snapshot().position_seconds, 0.0);
+    assert!(e
+        .send(Command::Seek {
+            seconds: f64::NAN,
+            generation: e.snapshot().generation
+        })
+        .is_err());
+    e.shutdown().unwrap();
+}
+
+#[test]
+fn gain_bounds_mute_restore_and_track_replacement() {
+    let (mut e, _) = engine();
+    e.send(Command::Volume(0.4)).unwrap();
+    e.send(Command::Mute(true)).unwrap();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    assert_eq!(e.snapshot().volume, 0.4);
+    assert!(e.snapshot().muted);
+    e.send(Command::Mute(false)).unwrap();
+    thread::sleep(Duration::from_millis(20));
+    assert!(!e.snapshot().muted);
+    assert_eq!(e.snapshot().volume, 0.4);
+    e.send(Command::Volume(2.0)).unwrap();
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(e.snapshot().volume, 1.0);
+    assert!(e.send(Command::Volume(f32::INFINITY)).is_err());
+    e.shutdown().unwrap();
+}
+
+#[test]
+fn failed_seek_leaves_playback_recoverable_without_eof() {
+    let (mut e, _, _, _) = monitored();
+    e.send(Command::Load("a".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    let pos = e.snapshot().position_seconds;
+    e.send(Command::Seek {
+        seconds: 6.0,
+        generation: e.snapshot().generation,
+    })
+    .unwrap();
+    thread::sleep(Duration::from_millis(20));
+    assert_eq!(e.snapshot().state, PlaybackState::Paused);
+    assert_eq!(e.snapshot().position_seconds, pos);
+    assert!(e.snapshot().operation_error.unwrap().contains("Seeking"));
+    e.shutdown().unwrap();
+}
+
+#[test]
+fn selected_device_rebuild_preserves_paused_position_and_gain() {
+    let (mut e, drops) = engine();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    e.send(Command::Seek {
+        seconds: 3.0,
+        generation: e.snapshot().generation,
+    })
+    .unwrap();
+    e.send(Command::Volume(0.3)).unwrap();
+    e.send(Command::Device(Some("fixture-device".into())))
+        .unwrap();
+    thread::sleep(Duration::from_millis(30));
+    let s = e.snapshot();
+    assert_eq!(s.state, PlaybackState::Paused);
+    assert_eq!(s.position_seconds, 3.0);
+    assert_eq!(s.volume, 0.3);
+    assert_eq!(s.preferred_device.as_deref(), Some("fixture-device"));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    e.shutdown().unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn in_flight_seek_cannot_publish_after_stop_or_replacement() {
+    struct Seeking {
+        started: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+    }
+    impl Backend for Seeking {
+        fn load(&mut self, p: &Path) -> Result<Snapshot, EngineError> {
+            Ok(Snapshot {
+                path: p.to_string_lossy().into(),
+                duration_seconds: Some(20.0),
+                ..Default::default()
+            })
+        }
+        fn seek(&mut self, _: &Path, _: f64, _: bool) -> Result<(), EngineError> {
+            self.started.send(()).unwrap();
+            self.release.recv().unwrap();
+            Ok(())
+        }
+        fn play(&mut self) {}
+        fn pause(&mut self) {}
+        fn stop(&mut self) {}
+        fn poll(&mut self) -> Result<(f64, bool), EngineError> {
+            Ok((0.0, false))
+        }
+    }
+    for replace in [false, true] {
+        let (tx, rx) = mpsc::channel();
+        let (release, waiting) = mpsc::channel();
+        let mut e = Engine::with_backend(move || Seeking {
+            started: tx,
+            release: waiting,
+        })
+        .unwrap();
+        e.send(Command::Load("old".into())).unwrap();
+        wait(&e, PlaybackState::Playing);
+        e.send(Command::Seek {
+            seconds: 10.0,
+            generation: e.snapshot().generation,
+        })
+        .unwrap();
+        rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        e.send(if replace {
+            Command::Load("new".into())
+        } else {
+            Command::Stop
+        })
+        .unwrap();
+        release.send(()).unwrap();
+        wait(
+            &e,
+            if replace {
+                PlaybackState::Playing
+            } else {
+                PlaybackState::Stopped
+            },
+        );
+        assert_eq!(e.snapshot().position_seconds, 0.0);
+        assert_eq!(e.snapshot().path, if replace { "new" } else { "old" });
+        e.shutdown().unwrap();
+        assert!(matches!(
+            e.send(Command::Volume(0.5)),
+            Err(EngineError::Disconnected)
+        ));
+    }
+}
+
+#[test]
+fn repeated_device_switches_and_seek_at_end_do_not_signal_eof() {
+    let (mut e, drops) = engine();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    for n in 0..40 {
+        e.send(Command::Device(Some(format!("device-{n}"))))
+            .unwrap();
+        let sequence = e.sequence;
+        let until = std::time::Instant::now() + Duration::from_secs(1);
+        while e.snapshot().acknowledged < sequence {
+            assert!(std::time::Instant::now() < until);
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert_eq!(e.snapshot().state, PlaybackState::Paused);
+    }
+    e.shutdown().unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 41);
+}
+
+#[test]
+fn retired_source_cannot_mix_samples_with_seek_replacement() {
+    use rodio::source::SineWave;
+    let active = Arc::new(AtomicBool::new(true));
+    let mut source = FencedSource {
+        inner: SineWave::new(440.0),
+        active: active.clone(),
+    };
+    assert!(source.next().is_some());
+    active.store(false, Ordering::Release);
+    assert_eq!(source.next(), None);
+}
+
+#[test]
+fn natural_end_reports_full_duration_and_released_output() {
+    let mut snapshot = Snapshot {
+        duration_seconds: Some(2.0),
+        position_seconds: 1.995,
+        output_rate: Some(48000),
+        ..Default::default()
+    };
+    snapshot.end();
+    assert_eq!(snapshot.position_seconds, 2.0);
+    assert_eq!(snapshot.output_rate, None);
+}
+
+#[test]
+fn finite_seek_requests_clamp_to_source_frames_without_resuming() {
+    let (mut e, _) = engine();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    {
+        let mut s = lock(&e.shared);
+        s.duration_seconds = Some(2.0);
+        s.sample_rate = Some(48000);
+    }
+    for (request, expected) in [
+        (-10.0, 0.0),
+        (99.0, 2.0 - 1.0 / 48000.0),
+        (0.000270833333, 13.0 / 48000.0),
+    ] {
+        e.send(Command::Seek {
+            seconds: request,
+            generation: e.snapshot().generation,
+        })
+        .unwrap();
+        let sequence = e.sequence;
+        let deadline = std::time::Instant::now() + Duration::from_secs(1);
+        while e.snapshot().acknowledged < sequence {
+            assert!(std::time::Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(1));
+        }
+        assert!((e.snapshot().position_seconds - expected).abs() < 1e-10);
+        assert_eq!(e.snapshot().state, PlaybackState::Paused);
+    }
+    assert!(e
+        .send(Command::Seek {
+            seconds: f64::INFINITY,
+            generation: e.snapshot().generation
+        })
+        .is_err());
+    e.shutdown().unwrap();
+}
+
+#[test]
+fn rapid_paused_seeks_publish_only_latest_accepted_request() {
+    let (mut e, _) = engine();
+    e.send(Command::Load("ok".into())).unwrap();
+    wait(&e, PlaybackState::Playing);
+    e.send(Command::Pause).unwrap();
+    wait(&e, PlaybackState::Paused);
+    let generation = e.snapshot().generation;
+    // Hold the snapshot mutex to deterministically enqueue a complete batch before the worker can inspect it.
+    let shared = e.shared.clone();
+    let mut s = lock(&shared);
+    for seconds in [8.0, 1.0, 6.0, 2.0] {
+        e.sequence += 1;
+        e.sender
+            .as_ref()
+            .unwrap()
+            .try_send(Envelope {
+                command: Command::Seek {
+                    seconds,
+                    generation,
+                },
+                sequence: e.sequence,
+                generation,
+            })
+            .unwrap();
+        s.seek_request = e.sequence;
+    }
+    drop(s);
+    let deadline = std::time::Instant::now() + Duration::from_secs(1);
+    while e.snapshot().acknowledged < e.sequence {
+        assert!(std::time::Instant::now() < deadline);
+        thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(e.snapshot().position_seconds, 2.0);
+    assert_eq!(e.snapshot().state, PlaybackState::Paused);
     e.shutdown().unwrap();
 }

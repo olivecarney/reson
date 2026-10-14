@@ -5,6 +5,12 @@ import UniformTypeIdentifiers
 @MainActor @Observable
 final class PlayerModel {
     var playback = PlaybackSnapshot()
+    var timeline = PlaybackTimeline()
+    private let settings: UserDefaults
+    var volume: Double = 1
+    var muted = false
+    private var rememberedVolume: Double = 1
+    private var gainPending = 0
     var tracks: [PlaybackSnapshot] = []
     var search = "" { didSet { if search != oldValue { reloadLibrary(debounce: true) } } }
     var importBusy = false
@@ -16,9 +22,69 @@ final class PlayerModel {
     var showInspector = false
     var message: String?
     var notice: String?
-    private let bridge = EngineBridge()
+    private let bridge: EngineBridge
     private let library: LibraryBridge
-    init(databaseURL: URL? = nil) { library=LibraryBridge(databaseURL:databaseURL) }
+    init(databaseURL: URL? = nil, settings: UserDefaults = .standard) {
+        library=LibraryBridge(databaseURL:databaseURL); self.settings=settings
+        let saved=settings.object(forKey:"playbackVolume") as? Double ?? 1
+        let initialVolume=saved.isFinite ? min(max(saved,0),1) : 1
+        volume=initialVolume
+        let previous=settings.object(forKey:"playbackPreviousVolume") as? Double ?? 1
+        let initialPrevious=previous.isFinite && previous > 0 ? min(previous,1) : 1
+        rememberedVolume=initialPrevious
+        let initialMuted=settings.bool(forKey:"playbackMuted")
+        muted=initialMuted
+        bridge=EngineBridge(initialVolume:initialVolume,initialMuted:initialMuted,initialPreviousVolume:initialPrevious)
+    }
+    var outputSelection: OutputSelection { OutputSelection(devices: playback.devices, preferred: playback.preferredDevice) }
+    func beginScrub() { timeline.begin(playback) }
+    func scrub(_ seconds: Double) { timeline.update(seconds, snapshot: playback) }
+    func endScrub() { if let seconds=timeline.finish(playback) { seek(seconds) } }
+    func seek(_ seconds: Double) {
+        guard !closing, playback.canSeek, seconds.isFinite, playback.generation == requestedGeneration else {return}
+        sendAudio(["op":"seek", "seconds":seconds, "generation":playback.generation])
+    }
+    func setVolume(_ value: Double) {
+        guard !closing, value.isFinite else {return}
+        volume=min(max(value,0),1)
+        if volume>0 {rememberedVolume=volume; muted=false}
+        settings.set(volume,forKey:"playbackVolume"); settings.set(rememberedVolume,forKey:"playbackPreviousVolume"); settings.set(muted,forKey:"playbackMuted")
+        sendAudio(["op":"volume","value":volume])
+    }
+    func toggleMute() {
+        guard !closing else {return}
+        muted = !(muted || volume==0)
+        if !muted && volume==0 {volume=rememberedVolume; sendAudio(["op":"volume","value":volume])}
+        settings.set(volume,forKey:"playbackVolume"); settings.set(muted,forKey:"playbackMuted")
+        sendAudio(["op":"mute","value":muted])
+    }
+    func refreshDevices() { sendAudio(["op":"devices"]) }
+    func selectOutput(_ id: String?) { sendAudio(["op":"device","id":id as Any? ?? NSNull()]) }
+    func reconcileGain(_ snapshot: PlaybackSnapshot) {
+        guard gainPending==0 else {return}
+        if abs(volume-snapshot.volume)>0.000001 {
+            volume=snapshot.volume;settings.set(volume,forKey:"playbackVolume")
+            if volume>0 {rememberedVolume=volume;settings.set(volume,forKey:"playbackPreviousVolume")}
+        }
+        if muted != snapshot.muted {muted=snapshot.muted;settings.set(muted,forKey:"playbackMuted")}
+    }
+    private func sendAudio(_ command: [String: Any]) {
+        guard !closing else {return}
+        let playbackRequest=requestID
+        let gainChange=["volume","mute"].contains(command["op"] as? String ?? "")
+        if gainChange {gainPending+=1}
+        Task {
+            defer {if gainChange {gainPending-=1}}
+            guard !closing else {return}
+            do {
+                let receipt=try await bridge.command(control:command)
+                expected=max(expected,receipt.sequence)
+                guard !closing, playbackRequest==requestID else {return}
+                requestedGeneration=max(requestedGeneration,receipt.generation)
+                message=nil; startRefresh()
+            } catch {if !closing, playbackRequest==requestID {message=error.localizedDescription; startRefresh()}}
+        }
+    }
     var playlists: [PlaylistRecord] = []
     private(set) var selectedPlaylistID: Int64?
     var tableRevision: UInt64 = 0
@@ -140,6 +206,7 @@ final class PlayerModel {
     }
     private func playTrack(_ track: PlaybackSnapshot) {
         guard !closing else {return}
+        timeline.cancel()
         requestID += 1
         let id=requestID
         message=nil; notice=nil; completion.disarm(); skippingFiles=true
@@ -156,7 +223,7 @@ final class PlayerModel {
         }
     }
     func togglePlayback() { control(playback.state == 2 ? 2 : 1) }
-    func stop() { completion.disarm(); skippingFiles=false; control(0) }
+    func stop() { timeline.cancel(); completion.disarm(); skippingFiles=false; control(0) }
     private func control(_ action: UInt32) {
         guard !closing, action==0 || !playback.path.isEmpty else { return }
         requestID += 1; let id=requestID
@@ -189,6 +256,8 @@ final class PlayerModel {
                             snapshot.libraryID=current.libraryID; snapshot.entryID=current.entryID
                             snapshot.genre=current.genre; snapshot.bpm=current.bpm; snapshot.key=current.key
                         }
+                        if playback.generation != snapshot.generation || !snapshot.canSeek {timeline.cancel()}
+                        reconcileGain(snapshot)
                         if playback != snapshot {playback=snapshot}
                         if snapshot.state==2 || snapshot.state==5 {if session.needsBeginConfirmation {session.began()}; skippingFiles=false}
                         if completion.consume(snapshot,generation:requestedGeneration,expected:expected) {
@@ -209,7 +278,7 @@ final class PlayerModel {
                         if !snapshot.needsRefresh(expected: expected) { return }
                     }
                 } catch { if !Task.isCancelled { message = error.localizedDescription }; return }
-                try? await Task.sleep(for: .milliseconds(playback.state == 3 ? 1000 : 250))
+                try? await Task.sleep(for: .milliseconds(playback.refreshMilliseconds(expected: expected)))
             } while !Task.isCancelled
         }
     }
