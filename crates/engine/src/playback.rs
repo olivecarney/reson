@@ -297,6 +297,17 @@ impl Engine {
     }
     pub fn send(&mut self, command: Command) -> Result<(), EngineError> {
         let mut s = lock(&self.shared);
+        let command = if matches!(command, Command::Play)
+            && matches!(
+                s.state,
+                PlaybackState::Stopped | PlaybackState::Ended | PlaybackState::Error
+            )
+            && !s.path.is_empty()
+        {
+            Command::Load(s.path.clone().into())
+        } else {
+            command
+        };
         let sequence = self.sequence + 1;
         let generation = s.generation + u64::from(matches!(command, Command::Load(_)));
         let path = if let Command::Load(p) = &command {
@@ -413,7 +424,18 @@ fn run_worker<B: Backend>(
                                 info.generation = env.generation;
                                 *s = info;
                             }
+                            let kind = if matches!(
+                                e,
+                                EngineError::Io(_)
+                                    | EngineError::Decode(_)
+                                    | EngineError::InvalidInput(_)
+                            ) {
+                                "file"
+                            } else {
+                                "output"
+                            };
                             s.fail(e.to_string());
+                            s.failure_kind = Some(kind.into());
                             s.acknowledged = env.sequence;
                         }
                     }
@@ -475,6 +497,7 @@ fn run_worker<B: Backend>(
                     }
                     Err(e) => {
                         s.fail(e.to_string());
+                        s.failure_kind = Some("output".into());
                         drop(s);
                         backend.stop();
                         output_active = false;

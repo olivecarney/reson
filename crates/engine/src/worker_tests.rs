@@ -505,3 +505,47 @@ fn worker_keeps_rerouted_stream_active_and_cleans_up_real_failures() {
     engine.shutdown().unwrap();
     assert_eq!(drops.load(Ordering::SeqCst), 2);
 }
+
+#[test]
+fn eof_is_distinct_from_stop_and_output_failure_and_replay_has_new_generation() {
+    struct End {
+        fail: bool,
+    }
+    impl Backend for End {
+        fn load(&mut self, p: &Path) -> Result<Snapshot, EngineError> {
+            self.fail = p == Path::new("fail");
+            Ok(Snapshot {
+                path: p.to_string_lossy().into(),
+                ..Default::default()
+            })
+        }
+        fn play(&mut self) {}
+        fn pause(&mut self) {}
+        fn stop(&mut self) {}
+        fn poll(&mut self) -> Result<(f64, bool), EngineError> {
+            if self.fail {
+                Err(EngineError::Output("fatal".into()))
+            } else {
+                Ok((1.0, true))
+            }
+        }
+    }
+    let mut e = Engine::with_backend(|| End { fail: false }).unwrap();
+    e.send(Command::Load("end".into())).unwrap();
+    wait(&e, PlaybackState::Ended);
+    let generation = e.snapshot().generation;
+    e.send(Command::Play).unwrap();
+    wait(&e, PlaybackState::Playing);
+    assert!(
+        e.snapshot().generation > generation,
+        "replaying must fence the old EOF"
+    );
+    e.send(Command::Stop).unwrap();
+    wait(&e, PlaybackState::Stopped);
+    thread::sleep(Duration::from_millis(150));
+    assert_eq!(e.snapshot().state, PlaybackState::Stopped);
+    e.send(Command::Load("fail".into())).unwrap();
+    wait(&e, PlaybackState::Error);
+    assert_eq!(e.snapshot().failure_kind.as_deref(), Some("output"));
+    e.shutdown().unwrap();
+}

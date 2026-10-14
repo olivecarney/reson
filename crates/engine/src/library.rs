@@ -62,7 +62,7 @@ impl Sort {
     }
 }
 pub struct LibraryStore {
-    connection: Connection,
+    pub(crate) connection: Connection,
 }
 impl LibraryStore {
     pub fn open(path: &Path) -> Result<Self> {
@@ -72,7 +72,7 @@ impl LibraryStore {
         let mut connection = Connection::open(path)?;
         connection.busy_timeout(std::time::Duration::from_secs(2))?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 1 {
+        if version > 2 {
             return Err("Library was created by a newer Reson version".into());
         }
         connection.execute_batch(
@@ -83,9 +83,16 @@ impl LibraryStore {
             tx.execute_batch("CREATE TABLE tracks(id INTEGER PRIMARY KEY,path TEXT NOT NULL UNIQUE,title TEXT NOT NULL,artist TEXT,album TEXT,genre TEXT,duration REAL,sample_rate INTEGER,channels INTEGER,bit_depth INTEGER,format TEXT NOT NULL,bpm REAL,musical_key TEXT,size INTEGER NOT NULL,modified INTEGER NOT NULL,imported INTEGER NOT NULL,missing INTEGER NOT NULL DEFAULT 0); CREATE TABLE folders(id INTEGER PRIMARY KEY,path TEXT NOT NULL UNIQUE,imported INTEGER NOT NULL,last_scan INTEGER); CREATE INDEX tracks_title ON tracks(title COLLATE NOCASE); CREATE INDEX tracks_artist ON tracks(artist COLLATE NOCASE); CREATE INDEX tracks_album ON tracks(album COLLATE NOCASE); PRAGMA user_version=1;")?;
             tx.commit()?;
         }
+        if version < 2 {
+            let tx = connection.transaction()?;
+            tx.execute_batch("CREATE TABLE playlists(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0); CREATE TABLE playlist_entries(id INTEGER PRIMARY KEY AUTOINCREMENT,playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,track_id INTEGER REFERENCES tracks(id) ON DELETE SET NULL,path TEXT NOT NULL,title TEXT NOT NULL,duration REAL,position INTEGER NOT NULL); CREATE INDEX playlist_order ON playlist_entries(playlist_id,position,id); PRAGMA user_version=2;")?;
+            tx.commit()?;
+        }
         // Validate even existing databases before returning a usable handle.
         connection.prepare("SELECT id,path,title,artist,album,genre,duration,sample_rate,channels,bit_depth,format,bpm,musical_key,size,modified,imported,missing FROM tracks LIMIT 0")?;
         connection.prepare("SELECT id,path,imported,last_scan FROM folders LIMIT 0")?;
+        connection.prepare("SELECT id,name,revision FROM playlists LIMIT 0")?;
+        connection.prepare("SELECT id,playlist_id,track_id,path,title,duration,position FROM playlist_entries LIMIT 0")?;
         Ok(Self { connection })
     }
     pub fn upsert(&mut self, t: &Track) -> Result<()> {

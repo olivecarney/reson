@@ -21,6 +21,11 @@ struct Request {
     descending: bool,
     offset: u32,
     limit: u32,
+    playlist_id: i64,
+    name: String,
+    ids: Vec<i64>,
+    position: Option<u32>,
+    revision: Option<i64>,
 }
 #[derive(Default, Serialize)]
 struct Status {
@@ -135,7 +140,68 @@ fn run(
 }
 impl Worker {
     fn respond(&mut self, request: Request) -> Result<Value> {
+        if request.ids.len() > 1000 {
+            return Err("Too many IDs".into());
+        }
         match request.op.as_str() {
+            "m3u8_import" | "m3u8_export" => {
+                if request.path.is_empty()
+                    || request.path.len() > 32768
+                    || request.path.contains('\0')
+                {
+                    return Err("Invalid M3U8 path".into());
+                }
+                if request.op == "m3u8_import" {
+                    let (playlist, skipped) = self
+                        .store
+                        .import_m3u8(std::path::Path::new(&request.path), &request.name)?;
+                    Ok(json!({"playlist":playlist,"skipped":skipped}))
+                } else {
+                    self.store
+                        .export_m3u8(request.playlist_id, std::path::Path::new(&request.path))?;
+                    Ok(json!({}))
+                }
+            }
+            "playlists" => Ok(json!({"playlists":self.store.playlists()?})),
+            "playlist_create" => Ok(json!({"playlist":self.store.create_playlist(&request.name)?})),
+            "playlist_entries" => {
+                if request.limit > 500 {
+                    return Err("Invalid query bounds".into());
+                }
+                Ok(
+                    json!({"entries":self.store.playlist_entries(request.playlist_id, request.offset, if request.limit==0 {500} else {request.limit})?,"revision":self.store.playlist_revision(request.playlist_id)?,"library_revision":self.status.revision}),
+                )
+            }
+            "playlist_rename" | "playlist_delete" | "playlist_add" | "playlist_remove"
+            | "playlist_move" => {
+                if let Some(revision) = request.revision {
+                    if self.store.playlist_revision(request.playlist_id)? != revision {
+                        return Err("Playlist changed; refresh and try again".into());
+                    }
+                }
+                match request.op.as_str() {
+                    "playlist_rename" => self
+                        .store
+                        .rename_playlist(request.playlist_id, &request.name)?,
+                    "playlist_delete" => self.store.delete_playlist(request.playlist_id)?,
+                    "playlist_add" => self.store.add_playlist_tracks(
+                        request.playlist_id,
+                        &request.ids,
+                        request
+                            .position
+                            .unwrap_or(self.store.playlist_count(request.playlist_id)?),
+                    )?,
+                    "playlist_remove" => self
+                        .store
+                        .remove_playlist_entries(request.playlist_id, &request.ids)?,
+                    _ => self.store.move_playlist_entries(
+                        request.playlist_id,
+                        &request.ids,
+                        request.position.ok_or("Move requires a destination")?,
+                    )?,
+                }
+                Ok(json!({}))
+            }
             "query" => {
                 if request.search.len() > 4096 || request.limit > 500 {
                     return Err("Invalid query bounds".into());

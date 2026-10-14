@@ -4,7 +4,9 @@ A lightweight native macOS player for local lossless music.
 
 Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-**Status: v0.2.1 artwork and interface polish.** Import FLAC/WAV folders, browse persistent metadata and embedded artwork, search and sort, and play tracks through the native interface.
+**Status: v0.3 persistent playlists and playback queues.** Organise local FLAC/WAV tracks, play a stable sequence, manage an independent queue and exchange M3U8 playlists.
+
+See [playlist behaviour and controls](docs/playlists-v0.3.md) and [v0.3 validation and measurements](docs/validation-v0.3.md).
 
 v0.2 adds a background Rust library worker using macOS system SQLite through `rusqlite`, without bundled SQLite. See the [library design](docs/library-v0.2.md), [validation and measurements](docs/validation-v0.2.md), and [database decision](docs/spikes/system-sqlite.md).
 
@@ -13,7 +15,10 @@ v0.2.1 adds lazy embedded FLAC/WAV artwork, native ImageIO thumbnails and a boun
 ## What works
 
 - FLAC and PCM WAV playback through a small Rust engine.
-- Play, pause, resume, stop and restart.
+- Play, pause, resume, stop, next/previous and automatic end-of-track progression.
+- Persistent playlists with native multiple-row drag/drop, duplicate entries and keyboard editing.
+- In-session queue with Play Next, append, reorder, remove and clear.
+- Local UTF-8 M3U8 import and atomic export.
 - Persistent recursive folder imports, cancellation, duplicate prevention and manual rescans.
 - Native track table with search, column sorting and missing-file indicators.
 - Title, artist, album, genre, tagged BPM/key and audio properties where available.
@@ -21,7 +26,7 @@ v0.2.1 adds lazy embedded FLAC/WAV artwork, native ImageIO thumbnails and a boun
 - Native file picker, double-click playback and macOS shortcuts.
 - Background file setup and shutdown, with protection against stale track metadata during rapid replacement.
 
-Folder imports persist in `~/Library/Application Support/Reson/library.db`. Files opened individually remain session-only. Artwork uses a placeholder. Artists, albums, genres and playlists in the sidebar are marked as future functionality.
+Folder imports persist in `~/Library/Application Support/Reson/library.db`. Files opened individually remain session-only. Tracks without embedded artwork use a placeholder. The sidebar contains Library and persistent playlists.
 
 ## Build and run
 
@@ -63,6 +68,12 @@ The project requests macOS 14 or later. The initial build machine's Homebrew Rus
 | Play a track | Double-click its row |
 | Pause / resume | **Space** or the playback button |
 | Stop and reset position | Stop button |
+| Create playlist | **⌘N** |
+| Import / export M3U8 | **⇧⌘I** / **⇧⌘E** |
+| Show queue | **⌘J** |
+| Next / previous | **⌥⌘N** / **⌥⌘P** |
+| Move selected playlist/queue rows | **⌥⌘↑** / **⌥⌘↓** |
+| Remove selected playlist/queue rows | **Delete** |
 | Toggle sidebar | **⌃⌘S** |
 | Toggle inspector | **⌥⌘I** |
 
@@ -135,9 +146,9 @@ This plays a synthetic tone on the default output device. It verifies engine beh
 
 ## Next milestones
 
-1. Continue library organization and native interface refinements.
-2. Persistent playlists, ordering, a separate queue and M3U8 import/export.
-3. Seeking, output-device selection, gapless playback and audio-path verification.
+1. Seeking, output-device selection and audio-path verification.
+2. Gapless playback and further library organisation.
+3. Broader native UX refinement (v0.5).
 
 Library benchmarks cover 270, 5,000 and 25,000 synthetic metadata records. Full Unicode case folding, automatic file watching and moved-file relinking are deferred. Older macOS compatibility and audible output remain unverified.
 

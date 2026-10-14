@@ -40,9 +40,23 @@ struct ResonApp: App {
                 Button("Import Folder…") { model.importFolder() }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.importBusy)
                 Button("Rescan Folders") { model.rescanFolders() }.disabled(model.importBusy)
                 Button("Cancel Import") { model.cancelImport() }.disabled(!model.importBusy) }
+            CommandMenu("Playlists") {
+                Button("Create Playlist…") {model.promptPlaylist()}.keyboardShortcut("n").disabled(model.playlistBusy)
+                Button("Rename Playlist…") {if let p=model.playlists.first(where:{$0.id==model.selectedPlaylistID}) {model.promptPlaylist(p)}}.disabled(model.selectedPlaylistID==nil || model.playlistBusy)
+                Button("Delete Playlist…") {if let p=model.playlists.first(where:{$0.id==model.selectedPlaylistID}) {model.confirmDeletePlaylist(p)}}.disabled(model.selectedPlaylistID==nil || model.playlistBusy)
+                Divider()
+                Button("Import M3U8…") {model.importM3U8()}.keyboardShortcut("i",modifiers:[.command,.shift]).disabled(model.playlistBusy)
+                Button("Export M3U8…") {model.exportM3U8()}.keyboardShortcut("e",modifiers:[.command,.shift]).disabled(model.selectedPlaylistID==nil || model.playlistBusy)
+            }
             CommandMenu("Playback") {
                 Button(model.playback.state == 2 ? "Pause" : "Play") { model.togglePlayback() }.disabled(model.playback.path.isEmpty)
                 Button("Stop") { model.stop() }.disabled(model.playback.path.isEmpty)
+                Button("Next Track") {model.nextTrack()}.keyboardShortcut("n",modifiers:[.command,.option]).disabled(!model.canNext)
+                Button("Previous Track") {model.previousTrack()}.keyboardShortcut("p",modifiers:[.command,.option]).disabled(!model.canPrevious)
+                Divider()
+                Button("Play Next") {if let track=model.selected {model.enqueue([track],next:true)}}.disabled(model.selected==nil)
+                Button("Add to Queue") {if let track=model.selected {model.enqueue([track],next:false)}}.disabled(model.selected==nil)
+                Button("Show Queue") {model.showQueue=true}.keyboardShortcut("j")
             }
             CommandGroup(after: .sidebar) {
                 Button("Toggle Sidebar") { model.showSidebar.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])

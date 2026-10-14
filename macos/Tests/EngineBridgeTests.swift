@@ -36,3 +36,16 @@ final class EngineBridgeTests: XCTestCase {
         XCTAssertNil(weakBridge)
     }
 }
+
+extension EngineBridgeTests {
+    func testLateSupersededRequestsCannotReplaceLatestSelectionOrStop() async throws {
+        let bridge=EngineBridge()
+        let latest=try await bridge.command(path:"/missing-latest.wav",request:3)
+        do {_=try await bridge.command(path:"/missing-old.wav",request:2);XCTFail("Superseded request was accepted")} catch BridgeError.superseded {}
+        let stop=try await bridge.command(action:0,request:4)
+        do {_=try await bridge.command(path:"/missing-later.wav",request:1);XCTFail("Old load overtook Stop")} catch BridgeError.superseded {}
+        XCTAssertEqual(stop.sequence,latest.sequence+1)
+        let snapshot=try await bridge.snapshot();XCTAssertEqual(snapshot.path,"/missing-latest.wav")
+        await bridge.shutdown()
+    }
+}
