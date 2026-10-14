@@ -2,7 +2,7 @@
 
 Pinned rodio 0.23.0, Symphonia 0.5.5, cpal 0.18.2. Enabled rodio features: playback, flac, wav. Defaults (recording, other codecs and dithering) are disabled. Symphonia is also used directly for header probing; serde_json serves only copied bridge snapshots. No runtime network operations.
 
-The worker creates and owns the decoder, Player and MixerDeviceSink. The default device config is used, and source properties are reported separately from configured output rate/channels/sample format. These are stream properties, not a measurement of the hardware's physical format. No volume processing is added by Reson.
+The worker creates and owns the decoder, Player and MixerDeviceSink. The chosen device config is used, and source properties are reported separately from configured output rate/channels/sample format. These are stream properties, not a measurement of the hardware's physical format. v0.4 adds app gain/mute through rodio and supports pinned output-device selection; see [v0.4 behaviour](audio-v0.4.md).
 
 ## Callback audit
 
@@ -10,7 +10,7 @@ Inspected the pinned rodio sources stream.rs, player.rs, decoder/symphonia.rs, q
 
 Rodio uses floating samples and adapts rate/channels to the output stream. CoreAudio may additionally mix or convert. Lossless input does not establish bit-perfect output; 32-bit integer precision, rate-conversion transparency and exclusive hardware access are not verified. No gapless claim.
 
-Startup is silent and lazy. Stop/EOF closes playback resources; pause retains the stream (which can continue rendering silence). Output callback errors set an atomic flag. The worker checks while playing (100 ms timeout) and while an output stream remains paused (500 ms timeout), preserving paused position. Failed streams are released and can be retried by Play or a new load. The UI checks paused snapshots once per second, so it can display errors without requiring resume. Empty/stopped/error engines block indefinitely on commands. Corruption encountered after initial decoder construction may be treated as EOF/skipped packets by rodio rather than a detailed error; this is a dependency limitation.
+Startup is silent and lazy. Stop/EOF closes playback resources; pause retains the stream (which can continue rendering silence). Output callback errors/notices use separate bounded event channels. The worker checks while playing (100 ms timeout) and while an output stream remains paused (500 ms timeout), preserving paused position. Failed streams are released and can be retried by Play or a new load. The UI checks paused snapshots once per second, so it can display errors without requiring resume. Empty/stopped/error engines block indefinitely on commands. Corruption encountered after initial decoder construction may be treated as EOF/skipped packets by rodio rather than a detailed error; this is a dependency limitation.
 
 ## Observed live configuration
 
