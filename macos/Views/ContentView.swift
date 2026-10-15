@@ -39,12 +39,6 @@ struct ContentView: View {
                             VStack(spacing:8) {Text(model.libraryLoading ? "Loading playlist…" : "This playlist is empty.").font(.title3); Text("Add tracks from the library’s context menu or drag them onto this playlist in the sidebar.").font(.caption).foregroundStyle(.secondary)}.padding(24).allowsHitTesting(false)
                         }
                     }
-                    HStack {
-                        Circle().fill(model.playback.state == 2 ? Color.accentColor : Color.secondary.opacity(0.5)).frame(width: 5, height: 5)
-                        Text(model.playback.stateLabel.uppercased()).font(.system(size: 10, weight: .medium, design: .monospaced))
-                        Spacer()
-                        Text((model.session.label.isEmpty ? "FLAC · WAV" : "Sequence: \(model.session.label)") + (model.session.queue.isEmpty ? "" : " · \(model.session.queue.count) queued")).font(.system(size: 10, design: .monospaced))
-                    }.foregroundStyle(.secondary).padding(.horizontal, 20).padding(.vertical, 10)
                 }.frame(minWidth: 280).background(InterfaceStyle.background)
                 if model.showInspector { InspectorView(track: model.selected, artworkRevision: model.artworkRevision).frame(minWidth: InterfaceStyle.inspectorMinimum, idealWidth: 240, maxWidth: 280) }
             }
@@ -87,7 +81,7 @@ struct ContentView: View {
     private var libraryHeading: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(model.listTitle).font(.system(size: 20, weight: .semibold)).lineLimit(1)
-            Text(model.tracks.isEmpty ? "Your music, close at hand." : "\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks")")
+            Text("\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks")")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
     }
@@ -122,20 +116,15 @@ struct ContentView: View {
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 9) {
-                Image(systemName: "waveform").foregroundStyle(Color.accentColor)
-                Text("reson").font(.system(size: 21, weight: .semibold, design: .rounded))
-            }.padding(.top, 18).padding(.bottom, 20).padding(.horizontal, 20)
-            Text("LIBRARY").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.bottom, 12)
+            Text("Library").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 8)
             Button {model.selectPlaylist(nil)} label: {
                 Label("All Tracks",systemImage:"music.note.list").font(.system(size:13,weight:.medium)).padding(10).frame(maxWidth:.infinity,alignment:.leading)
             }.buttonStyle(.plain).accessibilityValue(model.selectedPlaylistID == nil ? "Selected" : "").background(Color.accentColor.opacity(model.selectedPlaylistID==nil ? 0.15 : 0),in:RoundedRectangle(cornerRadius:6)).padding(.horizontal,10)
-            HStack {Text("PLAYLISTS").font(.system(size:10,weight:.semibold)).foregroundStyle(.secondary); Spacer(); Button {model.promptPlaylist()} label:{Image(systemName:"plus")}.buttonStyle(.plain).help("Create Playlist (⌘N)").accessibilityLabel("Create Playlist").disabled(model.playlistBusy)}.padding(.horizontal,20).padding(.top,18).padding(.bottom,8)
-            if model.playlists.isEmpty {Text("Create a playlist to organise your music.").font(.caption).foregroundStyle(.secondary).padding(.horizontal,20).padding(.vertical,8)}
+            HStack {Text("Playlists").font(.caption).foregroundStyle(.secondary); Spacer(); Button {model.promptPlaylist()} label:{Image(systemName:"plus")}.buttonStyle(.plain).help("Create Playlist (⌘N)").accessibilityLabel("Create Playlist").disabled(model.playlistBusy)}.padding(.horizontal,20).padding(.top,18).padding(.bottom,8)
+            if model.playlists.isEmpty {Text("No playlists").font(.caption).foregroundStyle(.secondary).padding(.horizontal,20).padding(.vertical,8)}
             PlaylistSidebar(playlists:model.playlists,selection:model.selectedPlaylistID,select:{model.selectPlaylist($0)},rename:{model.promptPlaylist($0)},delete:model.confirmDeletePlaylist,export:{model.exportM3U8($0)},add:{model.insertTrackIDs($0,to:$1)},editingEnabled:!model.playlistBusy).padding(.horizontal,6)
             Button {model.showQueue=true} label:{Label("Play Queue (\(model.session.queue.count))",systemImage:"list.bullet")}.buttonStyle(.plain).padding(20)
-            Spacer()
-            Text("LOCAL MUSIC · v0.5").font(.system(size: 9, design: .monospaced)).foregroundStyle(.secondary).padding(20)
+
         }.frame(maxHeight: .infinity).background(.ultraThinMaterial)
     }
 }

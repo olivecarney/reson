@@ -34,7 +34,7 @@ struct TransportView: View {
             transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play", "Play / Pause (Space)", enabled:!model.playback.path.isEmpty && model.playback.state != 1, action:model.togglePlayback)
             transportButton("stop.fill", "Stop", "Stop playback", enabled:!model.playback.path.isEmpty, action:model.stop)
             transportButton("forward.end.fill", "Next Track", "Next Track (⌥⌘N)", enabled:model.canNext, action:model.nextTrack)
-        }.padding(.horizontal,4)
+        }.padding(.horizontal,6).padding(.vertical,2).modifier(PlaybackGlass())
     }
     private var outputControls: some View {
         HStack(spacing: 8) {
@@ -69,5 +69,17 @@ struct TransportView: View {
             if let error=model.playback.error {Text(error).foregroundStyle(.orange)}
             if let notice=model.playback.outputNotice {Text(notice).foregroundStyle(.secondary)}
         }.font(.system(size:12)).textSelection(.enabled)
+    }
+}
+
+// Glass belongs to the control group, leaving the information surface flat.
+private struct PlaybackGlass: ViewModifier {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @ViewBuilder func body(content: Content) -> some View {
+        if #available(macOS 26.0, *), !reduceTransparency {
+            content.glassEffect(.regular, in: .capsule)
+        } else {
+            content.background(.regularMaterial, in: Capsule())
+        }
     }
 }

@@ -33,7 +33,7 @@ struct ResonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = PlayerModel()
     var body: some Scene {
-        Window("Reson", id: "main") {
+        Window("reson", id: "main") {
             ContentView(model: model)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: InterfaceStyle.windowMinimum.width, minHeight: InterfaceStyle.windowMinimum.height)
@@ -41,6 +41,9 @@ struct ResonApp: App {
         }
         .defaultSize(width: 1180, height: 740)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About reson") {NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"reson"])}
+            }
             CommandGroup(replacing: .newItem) { Button("Open File…") { model.openFile() }.keyboardShortcut("o")
                 Button("Import Folder…") { model.importFolder() }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.importBusy)
                 Button("Rescan Folders") { model.rescanFolders() }.disabled(model.importBusy)

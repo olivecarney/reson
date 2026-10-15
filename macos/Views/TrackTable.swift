@@ -31,9 +31,10 @@ struct TrackTable: NSViewRepresentable {
         table.autosaveTableColumns = true
         table.backgroundColor = .clear; table.usesAlternatingRowBackgroundColors = false
         table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",64)] {
+        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",84)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
-            column.title = title; column.headerCell.alignment = ["bpm", "duration"].contains(id) ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : 40))
+            if id == "duration" {column.headerCell = TimeColumnHeaderCell(textCell:title)}
+            column.title = title; column.headerCell.alignment = ["bpm", "duration"].contains(id) ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : (id == "duration" ? 72 : 40)))
             if id == "art" { column.maxWidth = 36; column.resizingMask = [] }
             if id != "art", sourceID=="library" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
@@ -140,7 +141,7 @@ struct TrackTable: NSViewRepresentable {
                 cell.identifier = identifier
                 let label = NSTextField(labelWithString: "")
                 cell.addSubview(label); label.translatesAutoresizingMaskIntoConstraints = false
-                NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: cell.leadingAnchor),label.trailingAnchor.constraint(equalTo: cell.trailingAnchor),label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)])
+                NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: cell.leadingAnchor),label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: id == "duration" ? -12 : 0),label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)])
                 cell.textField = label
             }
             let label = cell.textField!
@@ -255,5 +256,13 @@ func timeLabel(_ seconds: Double) -> String {
 private extension PlaybackSnapshot {
     var tableContent: [String] {
         [displayTitle, artist ?? "—", album ?? "—", format, timeLabel(duration), bpm.map { String(format: "%g", $0) } ?? "—", key ?? "—", String(missing)]
+    }
+}
+
+private final class TimeColumnHeaderCell: NSTableHeaderCell {
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        var padded=cellFrame
+        padded.size.width=max(0,cellFrame.width-12)
+        super.drawInterior(withFrame:padded,in:controlView)
     }
 }

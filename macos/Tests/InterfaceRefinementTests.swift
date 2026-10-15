@@ -114,6 +114,18 @@ import SwiftUI
         c.update(TrackTable(tracks:[a],selection:.constant(nil),play:{_ in},playingID:"a",dataRevision:1))
         XCTAssertEqual(table.updatedColumns,IndexSet(integer:2))
     }
+    func testTimeCellKeepsAnInsetAtTheTableEdge() {
+        var a=PlaybackSnapshot();a.path="a";a.duration=61
+        let parent=TrackTable(tracks:[a],selection:.constant(nil),play:{_ in})
+        let host=NSHostingView(rootView:parent)
+        let window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:200),styleMask:[.titled],backing:.buffered,defer:false)
+        window.contentView=host;host.layoutSubtreeIfNeeded()
+        let table=descendants(host).compactMap {$0 as? TrackListView}.first!
+        let cell=table.view(atColumn:7,row:0,makeIfNecessary:true) as! NSTableCellView
+        cell.layoutSubtreeIfNeeded()
+        XCTAssertLessThanOrEqual(cell.textField!.alignmentRect(forFrame:cell.textField!.frame).maxX,cell.bounds.maxX-12)
+        XCTAssertEqual(cell.textField?.stringValue,"1:01")
+    }
     private func key(_ code:UInt16)->NSEvent {
         NSEvent.keyEvent(with:.keyDown,location:.zero,modifierFlags:[],timestamp:0,windowNumber:0,context:nil,characters:"",charactersIgnoringModifiers:"",isARepeat:false,keyCode:code)!
     }
