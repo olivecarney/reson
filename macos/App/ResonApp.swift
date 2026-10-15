@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: PlayerModel?
     private var keyMonitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -40,6 +41,7 @@ struct ResonApp: App {
                 .onAppear { delegate.model = model; model.startLibrary() }
         }
         .defaultSize(width: 1180, height: 740)
+        .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 Button("About reson") {NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"reson"])}

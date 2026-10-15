@@ -132,12 +132,12 @@ struct TrackTable: NSViewRepresentable {
                 cell.configure(path: track.path, cache: parent.artworkCache)
                 return cell
             }
-            let cell: NSTableCellView
-            if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView,
+            let cell: MetadataCell
+            if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? MetadataCell,
                reused.textField != nil {
                 cell = reused
             } else {
-                cell = NSTableCellView()
+                cell = MetadataCell()
                 cell.identifier = identifier
                 let label = NSTextField(labelWithString: "")
                 cell.addSubview(label); label.translatesAutoresizingMaskIntoConstraints = false
@@ -146,9 +146,9 @@ struct TrackTable: NSViewRepresentable {
             }
             let label = cell.textField!
             switch id { case "title": label.stringValue = (track.rowID==parent.playingID ? "▶ " : "") + track.displayTitle + (track.missing ? " · Missing" : ""); case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "bpm": label.stringValue = track.bpm.map { String(format: "%g", $0) } ?? "—"; case "key": label.stringValue = track.key ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
-            label.font = InterfaceStyle.tableFont
-            label.textColor = id == "title" ? .labelColor : .secondaryLabelColor
-            if track.missing { label.textColor = .tertiaryLabelColor }
+            label.font = ["bpm", "duration"].contains(id) ? .monospacedDigitSystemFont(ofSize: 13, weight: .regular) : InterfaceStyle.tableFont
+            cell.normalTextColor = track.missing ? .secondaryLabelColor : (id == "title" ? .labelColor : .secondaryLabelColor)
+            cell.updateTextColor()
             label.alignment = ["bpm", "duration"].contains(id) ? .right : .left
             cell.toolTip = label.stringValue
             label.setAccessibilityLabel((tableColumn?.title.isEmpty == false ? tableColumn!.title : id.capitalized) + ": " + label.stringValue)
@@ -264,5 +264,16 @@ private final class TimeColumnHeaderCell: NSTableHeaderCell {
         var padded=cellFrame
         padded.size.width=max(0,cellFrame.width-12)
         super.drawInterior(withFrame:padded,in:controlView)
+    }
+}
+
+// AppKit updates backgroundStyle when selection/focus changes, including reused views.
+final class MetadataCell: NSTableCellView {
+    var normalTextColor: NSColor = .labelColor
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { updateTextColor() }
+    }
+    func updateTextColor() {
+        textField?.textColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : normalTextColor
     }
 }

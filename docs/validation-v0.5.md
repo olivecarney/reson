@@ -1,5 +1,7 @@
 # v0.5 validation
 
+This document preserves the earlier milestone checkpoints. The **Native macOS design correction** section below records the final correction and supersedes the earlier visual follow-up descriptions.
+
 Validated on the development Apple Silicon Mac on 14–15 October 2026, starting from clean `origin/main` at merged v0.4 `3ae7eea0e1b7616bec5782f1a02f032651213a8d`. Implementation uses `reson-v0.5`. Rust audio, the C ABI, SQLite/schema 2, queue policy and artwork-cache algorithms are unchanged. Only original synthetic audio, generated metadata databases and isolated application settings/cache were used; personal music and the real application database were not used.
 
 ## Required gates and regression coverage
@@ -119,3 +121,69 @@ The follow-up build passes. Swift discovers 87 tests: 79 pass and eight opt-in c
 ## Typography and glass controls — 15 October
 
 Regular 13-point table typography, lighter headings, glass header actions and matching output controls replace the previous styling. The build and 87-test Swift suite pass (79 passed, eight opt-in skips). The release native interface benchmark passes: 25k scroll median/p95 5.74/6.52 ms, compared with 4.81/5.12 ms in the preceding pass. Glass adds a small measurable layout cost; no per-row glass or animation is used. Native review covers the wide header, compact header with inspector, and opening/cancelling the file picker from the styled plus button. Reduce Transparency branches use native bordered buttons and opaque capsule backgrounds; that system preference was not toggled during visual QA. Logs: ignored `build/clean-ui-{tests,build,bench}.log`.
+
+
+## Native macOS design correction — 15 October 2026
+
+Continued the existing `reson-v0.5` branch, preserving both later commits from `codex/simplify-interface` (`e30784c`, `45ffa32`) by fast-forward. The correction baseline is `45ffa32`; the merge base on main is `9987b79`. Work was performed by one agent. Rust playback, SQLite/schema, C ABI, queue policy and dependencies are unchanged.
+
+### Visual findings and review
+
+The running baseline showed a broad grey content header, a custom blue-tinted Library selection, multiple independent glass capsules for secondary actions, differing sidebar/inspector/transport materials, and equal playback-button emphasis. These were visible even though the preceding code already used authentic glass APIs and system fonts. The correction moves window actions into the native unified toolbar, replaces the custom All Tracks selection with a native source list, makes library content a semantic text background and inspector content a semantic window background, and limits additional glass to one playback group. The transport uses a native title-bar material; its output controls no longer have a separate capsule. Play/Pause, timestamps and important small metadata have clearer hierarchy.
+
+The final rendered app was reviewed at normal size and at the actual 820-point minimum width, including populated inspectors. The content minimum is 820×520; native title-bar height makes the minimum test window taller than 520. Minimum variants change only the isolated app’s initial size and inspector visibility. Normal and minimum screenshots show readable controls and unobscured artwork. The compact header no longer consumes a second row for an overflow menu. Wide table columns remain accessible through native horizontal scrolling. Inspector metadata scrolls independently; long-title hosting tests cover truncation and layout at compact, normal and large sizes. A clipped lower source-list selection corner found in hosting screenshots was corrected by allowing enough row-container height.
+
+Before/after evidence is retained locally in ignored `build/glass-review/`:
+
+| Requested state | Before / after evidence | Finding |
+| --- | --- | --- |
+| Normal library | `before-normal.png`, `after-normal.png` | Secondary actions moved out of content; calm neutral table surface. |
+| Minimum-width library | `before-minimum.png`, `after-minimum.png` | Real native app windows; toolbar fits, leading columns and inspector remain usable. |
+| Playlist selected | `before-playlist.png`, `after-playlist.png` | Native source-list selection; after capture includes a persisted synthetic track. |
+| Queue open | `before-queue.png`, `after-queue.png` | Native sheet, current-track context and pending table; after capture includes a queued occurrence. |
+| Inspector populated | `before-inspector.png`, `after-inspector.png` | Flat readable metadata and bounded artwork; no competing large blur layer. |
+| Playing transport | `before-playing.png`, `after-playing.png` | One glass playback group; primary Play/Pause, standard output controls and native timeline. |
+| Native popover/menu | `before-popover.png`, `after-popover.png`, `after-menu.png` | System presentation and legible audio details/context actions. App-window captures crop portions of popovers extending beyond the parent window; their complete text was checked through accessibility. |
+| Empty library | `before-empty.png`, `after-empty.png` | Real fresh isolated databases, clear import action; corrected empty seek control is disabled. |
+| Accessibility appearance | `before-accessibility-empty.png`, `after-accessibility-empty.png`, `after-accessibility.png`, `after-increased-contrast.png` | Real Increase Contrast and Reduce Transparency settings were toggled, including contrast alone. Opaque playback/sidebar/transport fallbacks and system toolbar outlines remained readable. Both preferences were restored to their original off values. |
+
+Hosting evidence in `before-layout/`, `before-extra-layout/` and `after-layout/` supplements the real app captures. Cache-display hosting snapshots do not reproduce all compositor glass effects, so material judgement used the live app. Native window-edge drag automation did not resize reliably; fresh smoke bundles with minimum initial sizes supplied the actual compact-window evidence instead. Row-wide accessibility clicks can target horizontally offscreen portions of a wide table; clicking visible text/cells and invoking AppKit’s native Scroll Left action verified the intended interactions.
+
+Live checks exercised Return-to-play, pause/resume, mute/restoration, playlist creation and insertion through native menus, playlist/Library navigation, queue insertion/presentation/dismissal, and native audio details. Focused timeline Home reached 0:00 and Right reached 0:05 while paused. Retrying System Default retained the paused position and cleared a nonfatal xrun notice observed during desktop/build activity. This repeats the previously documented environmental xrun behaviour; no playback architecture was changed. Clean quit and isolated database integrity checks succeeded. No personal music or database was used for test writes.
+
+### Regression and compatibility evidence
+
+The final required gate runs are logged under `build/glass-review/premerge/` and `postmerge/`: formatting, workspace Rust tests, warnings-as-errors Clippy, the packaged native build and the full Swift suite. Rust has **75 passing tests**; Swift discovers **93 tests, 85 passing and eight opt-in skips**, with zero failures. The default skip count does not represent unrun integration coverage: the explicit CoreAudio/bridge/playlist group passes **11 tests**, the release interface/playlist group passes **two**, and the artwork workload/maintenance group passes **two**. These groups overlap default discovery.
+
+New native tests verify selection emphasis/restoration, aligned numeric digits with proportional titles, Library source-list selection and navigation, opaque material transitions without effect accumulation, high-contrast empty/queue hosting, and the compact disabled timeline. The first three appearance tests failed against the old implementation before correction. The empty-layout regression also fails against the baseline: SwiftUI can override an embedded slider’s initial AppKit enabled state. Applying the disabled state at both layers fixes the real hosted control and its native accessibility state. Final review also reproduced a duplicate Library reload: selection notification and a table single-click action both navigated before SwiftUI refreshed the coordinator. Removing the redundant single-click action leaves selection-driven navigation; the regression now verifies exactly one navigation per click. The existing cell-reuse test was updated to expect aligned digits specifically for numeric columns; it still verifies reuse, reset content, colours and stable constraints.
+
+The installed SDK explicitly declares `glassEffect`/`GlassEffectContainer` availability from macOS 26. The package and app minimum remain macOS 14. Tested execution was on Apple Silicon macOS **27.0.1 (26A434)** with the macOS 27 SDK. macOS 14, 15 and 26 execution was **not** performed. Availability guards and native fallbacks compile, but that is not a claim of runtime certification on those releases. Existing Rust standard-library deployment-version linker warnings and the existing test weak-reference warning remain. Full VoiceOver operation, exhaustive Tab traversal and physical output unplug remain unverified. Native drag/drop, selection repair, queue identity, seek fencing and clean shutdown retain their behavioural test coverage; literal pointer-drag certification remains limited by automation.
+
+An early comparison-copy integration invocation lacked the relative fixture directory and observed the default output device changing during a switch loop. Its failures are retained in `before-audio.log`; the correctly configured current-repository integration run passes all 11 tests and retains hardware volume. The optional artwork run initially exhausted free disk space during maintenance-test setup; only this review’s generated compiler caches were removed before retrying. No product failure was accepted as a passing gate.
+
+### Performance comparison
+
+Both variants use the same static engine archive, synthetic schema-2 data and release flags. The uninstrumented native executable measures **4,197,432 bytes before** and **4,089,664 bytes after**: 107,768 bytes smaller (about **2.6%**). These are executables, not app/cache/build-directory sizes.
+
+The first 270/5k/25k startup sweep varied during native QA and accessibility-setting activity. A quieter six-run, alternating-order 25k repeat excludes each first launch and gives:
+
+| Metric | Before | After |
+| --- | ---: | ---: |
+| Warm window-ready median | 313.42 ms | 301.99 ms |
+| Warm library-ready median | 636.59 ms | 626.02 ms |
+| Idle CPU, 10-second observation after 5-second settle | 0.1% | 0.0% |
+| RSS in that idle observation | 103,472 KiB | 100,512 KiB |
+
+The overlapping startup ranges and variable RSS support comparable readiness/memory, not a claimed startup or memory improvement. Readiness markers are not finished compositing. The raw broad sweep and quieter repeat remain in `startup.log` and `quiet-performance.log`.
+
+The same release native-window/queue benchmark gives:
+
+| Tracks | Before scroll median / p95 | After scroll median / p95 | Before / after queue hosting |
+| ---: | ---: | ---: | ---: |
+| 270 | 6.65 / 7.02 ms | 3.28 / 3.51 ms | 23.95 / 25.35 ms |
+| 5,000 | 7.31 / 10.27 ms | 3.27 / 3.48 ms | 19.29 / 18.36 ms |
+| 25,000 | 6.47 / 7.09 ms | 3.28 / 3.54 ms | 17.87 / 18.31 ms |
+
+This measures synchronous scrolling/layout/cell work, not presented frames. Moving the header’s independent glass effects out of the content layout reduces measured work; no frame-rate certification is claimed. Queue hosting remains comparable. The playlist benchmark also passes. No new animation, polling loop, shader, rendering infrastructure or dependency was introduced.
+
+Raw evidence: `appearance-red.log`, `navigation-once-{red,green}.log`, `before-extra-layout.log` (intentional baseline regression), `swift-final.log`, `native-audio.log`, `scroll-{before,after}.log`, `artwork-bench*.log`, `startup.log`, `quiet-performance.log`, and the final gate directories under `build/glass-review/`. Packaged smoke apps and screenshots remain ignored development artifacts; source tests and these documents are tracked. No release tag, GitHub Release, repository-visibility change or branch deletion is part of this correction.

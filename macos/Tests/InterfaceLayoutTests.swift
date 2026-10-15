@@ -37,6 +37,29 @@ final class InterfaceLayoutTests: XCTestCase {
         window.setContentSize(NSSize(width:1600,height:1000));hosting.layoutSubtreeIfNeeded()
         save(hosting,name:"large")
     }
+    func testAccessibilityAppearanceAndEmptyQueueLayouts() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let model = PlayerModel(databaseURL: directory.appendingPathComponent("library.db"))
+        model.showInspector = true
+        let host = NSHostingView(rootView: ContentView(model: model))
+        host.appearance = NSAppearance(named: .accessibilityHighContrastDarkAqua)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 520), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        window.contentView = host; window.setContentSize(NSSize(width: 820, height: 520)); host.layoutSubtreeIfNeeded()
+        XCTAssertEqual(host.frame.size, NSSize(width: 820, height: 520))
+        let timeline = try XCTUnwrap(descendants(host).compactMap { $0 as? ScrubSlider }.first)
+        XCTAssertFalse(timeline.isEnabled)
+        XCTAssertGreaterThan(timeline.bounds.width, 100)
+        save(host, name: "accessibility-empty-compact")
+        let queue = NSHostingView(rootView: QueueView(model: model))
+        queue.frame = NSRect(x: 0, y: 0, width: 680, height: 360); queue.layoutSubtreeIfNeeded()
+        let table = try XCTUnwrap(descendants(queue).compactMap { $0 as? TrackListView }.first)
+        XCTAssertEqual(table.numberOfRows, 0)
+        XCTAssertEqual(table.accessibilityLabel(), "Pending queue")
+        save(queue, name: "empty-queue")
+        await model.shutdown()
+    }
     private func descendants(_ view:NSView)->[NSView] {view.subviews.flatMap {[$0]+descendants($0)}}
     private func save(_ view:NSView,name:String) {
         guard let folder=ProcessInfo.processInfo.environment["RESON_INTERFACE_EVIDENCE"], let bitmap=view.bitmapImageRepForCachingDisplay(in:view.bounds) else {return}
