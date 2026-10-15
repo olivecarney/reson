@@ -55,4 +55,11 @@ No custom animations were added, so there is no new reduced-motion exception. Th
 
 The title bar now contains the single lowercase `reson` wordmark. The sidebar wordmark/icon, version/footer slogan, library status strip and FLAC/WAV badge are removed. Version/build information is available through the native **Reson → About reson** panel. Empty sidebar copy is reduced to No playlists. Track counts and actual file-format metadata remain because they describe the collection.
 
-The Time column has a wider default/minimum width and a trailing text inset, including its native header. On macOS 26 and newer the playback-control group uses SwiftUI's native Liquid Glass capsule; earlier systems use a standard material capsule. Reduce Transparency selects the system-material fallback. Glass is confined to controls, leaving the dense table flat. See [Apple's Liquid Glass guidance](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).
+The Time column has a wider default/minimum width and a trailing text inset, including its native header. On macOS 26 and newer the playback-control group uses SwiftUI's native Liquid Glass capsule; earlier systems use a standard material capsule. Reduce Transparency selects an opaque control background. Glass is confined to controls, leaving the dense table flat. See [Apple's Liquid Glass guidance](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).
+
+
+## Typography and control refinement
+
+The library uses regular 13-point system text and an 18-point medium heading. Inspector labels use sentence case, with a smaller medium title. Timeline labels use the system font with aligned digits. This keeps the native macOS character without adding font assets.
+
+Import, open, queue, inspector and playlist-add actions use native glass capsule buttons on macOS 26+, with nearby effects grouped in a `GlassEffectContainer`. Playback and output controls use matching glass capsules. Earlier systems keep native bordered buttons/materials; Reduce Transparency uses bordered buttons and opaque control surfaces. No animation, shader or rendering dependency is added, and track rows stay flat.

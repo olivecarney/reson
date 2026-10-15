@@ -80,7 +80,7 @@ struct ContentView: View {
     }
     private var libraryHeading: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(model.listTitle).font(.system(size: 20, weight: .semibold)).lineLimit(1)
+            Text(model.listTitle).font(InterfaceStyle.heading).lineLimit(1)
             Text("\(model.tracks.count) \(model.tracks.count == 1 ? "track" : "tracks")")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
@@ -96,31 +96,41 @@ struct ContentView: View {
                 Button("Open File…") {model.openFile()}
                 Button("Show Queue") {model.showQueue=true}
                 Button("Toggle Inspector") {model.showInspector.toggle()}
-            } label: {Image(systemName:"ellipsis.circle")}
-                .accessibilityLabel("Library actions").help("Import, queue and inspector actions")
+            } label: {Image(systemName:"ellipsis").frame(width:20,height:24)}
+                .menuStyle(.borderlessButton).fixedSize().padding(.horizontal, 8).padding(.vertical, 4)
+                .modifier(ControlGlass()).accessibilityLabel("Library actions").help("Import, queue and inspector actions")
         }
     }
     private var fullLibraryActions: some View {
-        HStack(spacing: 8) {
-            if model.selectedPlaylistID==nil {
-                TextField("Search library",text:$model.search).focused($searchFocused).accessibilityLabel("Search library").textFieldStyle(.roundedBorder).frame(minWidth:100,idealWidth:180,maxWidth:180)
-            } else {Button("Export M3U8…") {model.exportM3U8()}.disabled(model.playlistBusy)}
-            Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
-            Button { model.openFile() } label: { Image(systemName: "plus") }
-                .accessibilityLabel("Open File").help("Open File (⌘O)")
-            Button { model.showQueue = true } label: { Image(systemName: "list.bullet") }
-                .accessibilityLabel("Show Queue").help("Show Queue (⌘J)")
-            Button { model.showInspector.toggle() } label: { Image(systemName: "sidebar.right") }
-                .accessibilityLabel("Toggle inspector").help("Toggle inspector")
-        }
+        HStack(spacing: 10) {
+            if model.selectedPlaylistID == nil {
+                TextField("Search library", text: $model.search)
+                    .focused($searchFocused).accessibilityLabel("Search library")
+                    .textFieldStyle(.roundedBorder).frame(minWidth:100, idealWidth:160, maxWidth:160)
+            } else {
+                Button("Export M3U8…") {model.exportM3U8()}
+                    .modifier(ChromeButton()).disabled(model.playlistBusy)
+            }
+            HStack(spacing: 8) {
+                Button {model.importFolder()} label: {
+                    Label("Import Folder…", systemImage: "folder.badge.plus").padding(.horizontal, 4).frame(height:24)
+                }.disabled(model.importBusy).help("Import Folder (⇧⌘O)")
+                Button {model.openFile()} label: {Image(systemName:"plus").frame(width:20,height:24)}
+                    .accessibilityLabel("Open File").help("Open File (⌘O)")
+                Button {model.showQueue=true} label: {Image(systemName:"list.bullet").frame(width:20,height:24)}
+                    .accessibilityLabel("Show Queue").help("Show Queue (⌘J)")
+                Button {model.showInspector.toggle()} label: {Image(systemName:"sidebar.right").frame(width:20,height:24)}
+                    .accessibilityLabel("Toggle inspector").help("Toggle inspector")
+            }.modifier(ChromeButton()).modifier(ChromeGlassGroup())
+        }.font(.system(size:12))
     }
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Library").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 8)
             Button {model.selectPlaylist(nil)} label: {
-                Label("All Tracks",systemImage:"music.note.list").font(.system(size:13,weight:.medium)).padding(10).frame(maxWidth:.infinity,alignment:.leading)
+                Label("All Tracks",systemImage:"music.note.list").font(.system(size:13)).padding(10).frame(maxWidth:.infinity,alignment:.leading)
             }.buttonStyle(.plain).accessibilityValue(model.selectedPlaylistID == nil ? "Selected" : "").background(Color.accentColor.opacity(model.selectedPlaylistID==nil ? 0.15 : 0),in:RoundedRectangle(cornerRadius:6)).padding(.horizontal,10)
-            HStack {Text("Playlists").font(.caption).foregroundStyle(.secondary); Spacer(); Button {model.promptPlaylist()} label:{Image(systemName:"plus")}.buttonStyle(.plain).help("Create Playlist (⌘N)").accessibilityLabel("Create Playlist").disabled(model.playlistBusy)}.padding(.horizontal,20).padding(.top,18).padding(.bottom,8)
+            HStack {Text("Playlists").font(.caption).foregroundStyle(.secondary); Spacer(); Button {model.promptPlaylist()} label:{Image(systemName:"plus").frame(width:16,height:18)}.modifier(ChromeButton()).help("Create Playlist (⌘N)").accessibilityLabel("Create Playlist").disabled(model.playlistBusy)}.padding(.horizontal,20).padding(.top,18).padding(.bottom,8)
             if model.playlists.isEmpty {Text("No playlists").font(.caption).foregroundStyle(.secondary).padding(.horizontal,20).padding(.vertical,8)}
             PlaylistSidebar(playlists:model.playlists,selection:model.selectedPlaylistID,select:{model.selectPlaylist($0)},rename:{model.promptPlaylist($0)},delete:model.confirmDeletePlaylist,export:{model.exportM3U8($0)},add:{model.insertTrackIDs($0,to:$1)},editingEnabled:!model.playlistBusy).padding(.horizontal,6)
             Button {model.showQueue=true} label:{Label("Play Queue (\(model.session.queue.count))",systemImage:"list.bullet")}.buttonStyle(.plain).padding(20)

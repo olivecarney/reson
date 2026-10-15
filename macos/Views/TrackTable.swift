@@ -146,7 +146,7 @@ struct TrackTable: NSViewRepresentable {
             }
             let label = cell.textField!
             switch id { case "title": label.stringValue = (track.rowID==parent.playingID ? "▶ " : "") + track.displayTitle + (track.missing ? " · Missing" : ""); case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "bpm": label.stringValue = track.bpm.map { String(format: "%g", $0) } ?? "—"; case "key": label.stringValue = track.key ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
-            label.font = .systemFont(ofSize: 12, weight: id == "title" ? .medium : .regular)
+            label.font = InterfaceStyle.tableFont
             label.textColor = id == "title" ? .labelColor : .secondaryLabelColor
             if track.missing { label.textColor = .tertiaryLabelColor }
             label.alignment = ["bpm", "duration"].contains(id) ? .right : .left

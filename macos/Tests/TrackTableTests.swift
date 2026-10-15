@@ -35,7 +35,7 @@ final class TrackTableTests: XCTestCase {
             let expected = ["title": "Second", "artist": "—", "album": "—", "format": "WAV", "duration": "—", "bpm": "—", "key": "—"]
             XCTAssertEqual(second.textField?.stringValue, expected[id])
             XCTAssertEqual(second.textField?.textColor, id == "title" ? .labelColor : .secondaryLabelColor)
-            XCTAssertEqual(second.textField?.font, .systemFont(ofSize: 12, weight: id == "title" ? .medium : .regular))
+            XCTAssertEqual(second.textField?.font, .systemFont(ofSize: 13, weight: .regular))
         }
     }
     func testArtworkReuseResetsImageAndTint() {
