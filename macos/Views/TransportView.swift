@@ -4,33 +4,57 @@ struct TransportView: View {
     @State private var details = false
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 14) {
-                ArtworkView(path: model.playback.path, revision: model.artworkRevision).frame(width: 38, height: 38)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle).font(.system(size: 12, weight: .medium)).lineLimit(1)
-                    Text(model.playback.artist ?? model.playback.stateLabel).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
-                }.frame(minWidth: 80, maxWidth: .infinity, alignment: .leading)
-                Button {model.previousTrack()} label:{Image(systemName:"backward.end.fill")}.accessibilityLabel("Previous Track").disabled(!model.canPrevious)
-                Button {model.togglePlayback()} label:{Image(systemName:model.playback.state == 2 ? "pause.fill":"play.fill").font(.system(size:18)).frame(width:30,height:30)}.accessibilityLabel(model.playback.state == 2 ? "Pause":"Play").disabled(model.playback.path.isEmpty || model.playback.state == 1)
-                Button {model.stop()} label:{Image(systemName:"stop.fill")}.accessibilityLabel("Stop").disabled(model.playback.path.isEmpty)
-                Button {model.nextTrack()} label:{Image(systemName:"forward.end.fill")}.accessibilityLabel("Next Track").disabled(!model.canNext)
-                Button {model.toggleMute()} label:{Image(systemName:model.muted || model.volume == 0 ? "speaker.slash.fill":"speaker.wave.2.fill")}.accessibilityLabel(model.muted || model.volume == 0 ? "Unmute":"Mute").accessibilityValue(model.muted || model.volume == 0 ? "Muted":"\(Int((model.volume*100).rounded())) percent")
-                Slider(value:Binding(get:{model.volume},set:{model.setVolume($0)}),in:0...1).frame(width:85).controlSize(.small).accessibilityLabel("App volume")
-                Menu {
-                    Button(model.playback.preferredDevice == nil ? "✓ System Default":"System Default") {model.selectOutput(nil)}
-                    ForEach(model.playback.devices) {device in Button {model.selectOutput(device.id)} label:{Text((model.playback.preferredDevice == device.id ? "✓ ":"")+device.name)}}
-                    Divider()
-                    Button("Refresh Devices") {model.refreshDevices()}
-                    Button("Retry Selected Output") {model.selectOutput(model.playback.preferredDevice)}
-                } label:{Image(systemName:"hifispeaker")}.menuStyle(.borderlessButton).frame(width:24).help(model.outputSelection.label).accessibilityLabel("Output device: \(model.outputSelection.label)")
-                Button {model.refreshDevices(); details.toggle()} label:{Image(systemName:"info.circle")}.accessibilityLabel("Playback audio details").popover(isPresented:$details) {audioDetails.padding(16).frame(width:320)}
-            }.buttonStyle(.plain)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) { trackIdentity; playbackControls; outputControls }
+                VStack(spacing: 8) {
+                    HStack { trackIdentity; outputControls }
+                    playbackControls
+                }
+            }
             HStack(spacing: 10) {
                 Text(timeLabel(model.timeline.display(model.playback))).frame(width:42,alignment:.trailing)
                 TimelineSlider(value:model.timeline.display(model.playback),duration:model.playback.duration,enabled:model.playback.canSeek,begin:model.beginScrub,update:model.scrub,finish:model.endScrub).frame(height:16)
                 Text(timeLabel(model.playback.duration)).frame(width:42,alignment:.leading)
             }.font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary)
-        }.onAppear {model.refreshDevices()}.padding(.horizontal,20).padding(.vertical,10).background(Color(red:0.075,green:0.08,blue:0.095))
+        }.onAppear {model.refreshDevices()}.padding(.horizontal,16).padding(.vertical,10).background(.bar)
+    }
+    private var trackIdentity: some View {
+        HStack(spacing: 10) {
+            ArtworkView(path:model.playback.path, revision:model.artworkRevision).frame(width:36,height:36)
+            VStack(alignment:.leading,spacing:3) {
+                Text(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle).font(.system(size:12,weight:.medium)).lineLimit(1).help(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle)
+                Text(model.playback.artist ?? model.playback.stateLabel).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
+            }.frame(minWidth:100,maxWidth:.infinity,alignment:.leading)
+            if model.playback.state == 1 {ProgressView().controlSize(.small).accessibilityLabel("Loading audio")}
+        }
+    }
+    private var playbackControls: some View {
+        HStack(spacing: 4) {
+            transportButton("backward.end.fill", "Previous Track", "Previous Track (⌥⌘P)", enabled:model.canPrevious, action:model.previousTrack)
+            transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play", "Play / Pause (Space)", enabled:!model.playback.path.isEmpty && model.playback.state != 1, action:model.togglePlayback)
+            transportButton("stop.fill", "Stop", "Stop playback", enabled:!model.playback.path.isEmpty, action:model.stop)
+            transportButton("forward.end.fill", "Next Track", "Next Track (⌥⌘N)", enabled:model.canNext, action:model.nextTrack)
+        }.padding(.horizontal,4)
+    }
+    private var outputControls: some View {
+        HStack(spacing: 8) {
+            transportButton(model.muted || model.volume == 0 ? "speaker.slash.fill":"speaker.wave.2.fill",model.muted || model.volume == 0 ? "Unmute":"Mute","Mute / Unmute",enabled:true,action:model.toggleMute)
+                .accessibilityValue(model.muted || model.volume == 0 ? "Muted":"\(Int((model.volume*100).rounded())) percent")
+            Slider(value:Binding(get:{model.volume},set:{model.setVolume($0)}),in:0...1).frame(width:85).controlSize(.small).accessibilityLabel("App volume")
+            Menu {
+                Button(model.playback.preferredDevice == nil ? "✓ System Default":"System Default") {model.selectOutput(nil)}
+                ForEach(model.playback.devices) {device in Button {model.selectOutput(device.id)} label:{Text((model.playback.preferredDevice == device.id ? "✓ ":"")+device.name)}}
+                Divider()
+                Button("Refresh Devices") {model.refreshDevices()}
+                Button("Retry Selected Output") {model.selectOutput(model.playback.preferredDevice)}
+            } label:{Image(systemName:"hifispeaker")}.menuStyle(.borderlessButton).frame(width:28).help(model.outputSelection.label).accessibilityLabel("Output device: \(model.outputSelection.label)")
+            transportButton("info.circle","Playback audio details","Source and output audio details",enabled:true) {model.refreshDevices();details.toggle()}
+                .popover(isPresented:$details) {audioDetails.padding(16).frame(width:320)}
+        }
+    }
+    private func transportButton(_ symbol:String, _ label:String, _ help:String, enabled:Bool, action:@escaping ()->Void)->some View {
+        Button(action:action) {Image(systemName:symbol).frame(width:InterfaceStyle.controlSize,height:InterfaceStyle.controlSize).contentShape(Rectangle())}
+            .buttonStyle(.borderless).accessibilityLabel(label).help(help).disabled(!enabled)
     }
     private var audioDetails: some View {
         VStack(alignment:.leading,spacing:8) {

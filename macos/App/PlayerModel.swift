@@ -18,6 +18,11 @@ final class PlayerModel {
     var libraryLoading = false
     var artworkRevision: UInt64 = 0
     var selectedPath: String?
+    var searchFocusRequest: UInt64 = 0
+    func focusSearch() {
+        if selectedPlaylistID != nil {selectPlaylist(nil)}
+        searchFocusRequest &+= 1
+    }
     var showSidebar = true
     var showInspector = false
     var message: String?
@@ -87,6 +92,7 @@ final class PlayerModel {
     }
     var playlists: [PlaylistRecord] = []
     private(set) var selectedPlaylistID: Int64?
+    var tableFocusRequest: UInt64 = 0
     var tableRevision: UInt64 = 0
     private(set) var playlistRevision: Int64 = 0
     var playlistBusy = false
@@ -108,7 +114,7 @@ final class PlayerModel {
         let reply: PlaylistList = try await library.request(["op":"playlists"])
         guard !closing else {return}
         playlists=reply.playlists
-        if let id=selectedPlaylistID, !playlists.contains(where:{$0.id==id}) {selectPlaylist(nil)}
+        if let id=selectedPlaylistID, !playlists.contains(where:{$0.id==id}) {selectPlaylist(nil); tableFocusRequest &+= 1}
     }
     func createPlaylist(name: String) async -> Int64? {
         guard !closing, !playlistBusy else {return nil}

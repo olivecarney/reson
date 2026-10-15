@@ -16,7 +16,7 @@ final class ArtworkCell: NSTableCellView {
         artwork.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.045).cgColor
         addSubview(artwork); artwork.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            artwork.widthAnchor.constraint(equalToConstant: 36), artwork.heightAnchor.constraint(equalToConstant: 36),
+            artwork.widthAnchor.constraint(equalToConstant: 28), artwork.heightAnchor.constraint(equalToConstant: 28),
             artwork.centerXAnchor.constraint(equalTo: centerXAnchor), artwork.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }

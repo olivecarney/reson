@@ -20,16 +20,20 @@ struct TrackTable: NSViewRepresentable {
     var playingID: String?
     var dataRevision: UInt64?
     var editingEnabled = true
+    var focusRequest: UInt64 = 0
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView(); let table = TrackListView()
-        table.style = .plain; table.rowHeight = 48; table.intercellSpacing = NSSize(width: 10, height: 0)
+        table.style = .plain; table.rowHeight = 38; table.intercellSpacing = NSSize(width: 10, height: 0)
         table.allowsMultipleSelection=true
+        table.setAccessibilityLabel(sourceID == "queue" ? "Pending queue" : "Tracks")
+        table.autosaveName = "ResonTracks-" + (sourceID == "library" ? "library" : "ordered")
+        table.autosaveTableColumns = true
         table.backgroundColor = .clear; table.usesAlternatingRowBackgroundColors = false
-        table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+        table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
         for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",64)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
-            column.title = title; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : 32)
+            column.title = title; column.headerCell.alignment = ["bpm", "duration"].contains(id) ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : 40))
             if id == "art" { column.maxWidth = 36; column.resizingMask = [] }
             if id != "art", sourceID=="library" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
@@ -52,16 +56,26 @@ struct TrackTable: NSViewRepresentable {
         weak var table: NSTableView?
         init(_ parent: TrackTable) { self.parent = parent }
         private var updating = false
+        private var librarySortDescriptors: [NSSortDescriptor] = []
         func update(_ next: TrackTable) {
             let old = parent.tracks
             let selectedIDs=table?.selectedRowIndexes.compactMap { old.indices.contains($0) ? old[$0].rowID : nil } ?? []
             let oldPlaying=parent.playingID
             let unchangedRevision=next.dataRevision != nil && next.dataRevision==parent.dataRevision
+            let focusChanged=next.focusRequest != parent.focusRequest
             let sourceChanged=parent.sourceID != next.sourceID
             let refreshArtwork = parent.artworkRevision != next.artworkRevision
             let selection = next.selection
+            if sourceChanged, parent.sourceID == "library" {librarySortDescriptors=table?.sortDescriptors ?? []}
             parent = next
             guard let table else { return }
+            if focusChanged {
+                let request=next.focusRequest, source=next.sourceID
+                DispatchQueue.main.async { [weak self, weak table] in
+                    guard self?.parent.focusRequest == request, self?.parent.sourceID == source else {return}
+                    if let table {table.window?.makeFirstResponder(table)}
+                }
+            }
             updating = true
             defer { updating = false }
             let sameOrder = !sourceChanged && (unchangedRevision || (old.count == next.tracks.count && zip(old, next.tracks).allSatisfy { $0.rowID == $1.rowID }))
@@ -83,7 +97,9 @@ struct TrackTable: NSViewRepresentable {
             }
             if oldPlaying != next.playingID {
                 let changed=IndexSet(next.tracks.indices.filter { next.tracks[$0].rowID==oldPlaying || next.tracks[$0].rowID==next.playingID })
-                if !changed.isEmpty {table.reloadData(forRowIndexes:changed,columnIndexes:IndexSet(integer:1))}
+                if !changed.isEmpty, let titleColumn=table.tableColumns.firstIndex(where:{$0.identifier.rawValue == "title"}) {
+                    table.reloadData(forRowIndexes:changed,columnIndexes:IndexSet(integer:titleColumn))
+                }
             }
             let retained=Set(selectedIDs)
             let indexes: IndexSet
@@ -100,6 +116,7 @@ struct TrackTable: NSViewRepresentable {
                     self.parent.selection=replacement
                 }
             }
+            if sourceChanged {table.sortDescriptors = next.sourceID == "library" ? librarySortDescriptors : []}
             for column in table.tableColumns where sourceChanged && column.identifier.rawValue != "art" {
                 column.sortDescriptorPrototype=next.sourceID=="library" ? NSSortDescriptor(key:column.identifier.rawValue,ascending:true) : nil
             }
@@ -131,6 +148,9 @@ struct TrackTable: NSViewRepresentable {
             label.font = .systemFont(ofSize: 12, weight: id == "title" ? .medium : .regular)
             label.textColor = id == "title" ? .labelColor : .secondaryLabelColor
             if track.missing { label.textColor = .tertiaryLabelColor }
+            label.alignment = ["bpm", "duration"].contains(id) ? .right : .left
+            cell.toolTip = label.stringValue
+            label.setAccessibilityLabel((tableColumn?.title.isEmpty == false ? tableColumn!.title : id.capitalized) + ": " + label.stringValue)
             label.lineBreakMode = .byTruncatingTail
             return cell
         }
@@ -139,7 +159,8 @@ struct TrackTable: NSViewRepresentable {
             parent.sort(key, descriptor.ascending)
         }
         func tableViewSelectionDidChange(_ notification: Notification) {
-            guard !updating, let table, parent.tracks.indices.contains(table.selectedRow) else { return }
+            guard !updating, let table else { return }
+            guard parent.tracks.indices.contains(table.selectedRow) else {parent.selection = nil; return}
             let path = parent.tracks[table.selectedRow].rowID
             if parent.selection != path { parent.selection = path }
         }
@@ -149,9 +170,10 @@ struct TrackTable: NSViewRepresentable {
             let rows=clicked>=0 && !table.selectedRowIndexes.contains(clicked) ? IndexSet(integer:clicked) : table.selectedRowIndexes
             return rows.compactMap {parent.tracks.indices.contains($0) ? parent.tracks[$0] : nil}
         }
-        func performRows(_ action: TrackRowAction) {
-            let rows=actionRows
+        func performRows(_ action: TrackRowAction, contextMenu: Bool = false) {
+            let rows = contextMenu ? actionRows : (table?.selectedRowIndexes.compactMap {parent.tracks.indices.contains($0) ? parent.tracks[$0] : nil} ?? [])
             switch action {
+            case .play: if let row=rows.first, !row.missing {parent.play(row.rowID)}
             case .playNext: parent.playNext(rows)
             case .addQueue: parent.addQueue(rows)
             case .remove: if parent.editingEnabled {parent.remove?(rows)}
@@ -164,7 +186,7 @@ struct TrackTable: NSViewRepresentable {
             case .showQueue: parent.showQueue()
             }
         }
-        @objc private func menuAction(_ item: NSMenuItem) {if let action=TrackRowAction(rawValue:item.tag) {performRows(action)}}
+        @objc private func menuAction(_ item: NSMenuItem) {if let action=TrackRowAction(rawValue:item.tag) {performRows(action, contextMenu:true)}}
         @objc private func playlistAction(_ item: NSMenuItem) {if let id=item.representedObject as? Int64 {parent.addToPlaylist(actionRows,id)}}
         func menuNeedsUpdate(_ menu: NSMenu) {
             menu.removeAllItems(); let rows=actionRows
@@ -172,6 +194,7 @@ struct TrackTable: NSViewRepresentable {
                 let item=NSMenuItem(title:title,action:#selector(menuAction(_:)),keyEquivalent:""); item.target=self; item.tag=action.rawValue; item.isEnabled=enabled; menu.addItem(item)
             }
             menu.autoenablesItems=false
+            add("Play",.play,rows.first.map {!$0.missing} ?? false)
             if parent.sourceID != "queue" {
                 add("Play Next",.playNext,!rows.isEmpty); add("Add to Queue",.addQueue,!rows.isEmpty)
                 let item=NSMenuItem(title:"Add to Playlist",action:nil,keyEquivalent:""); let submenu=NSMenu(); submenu.autoenablesItems=false
@@ -179,14 +202,16 @@ struct TrackTable: NSViewRepresentable {
                     let child=NSMenuItem(title:playlist.name,action:#selector(playlistAction(_:)),keyEquivalent:"")
                     child.target=self; child.representedObject=playlist.id; child.isEnabled=parent.editingEnabled && !rows.isEmpty && rows.allSatisfy {$0.libraryID != nil}; submenu.addItem(child)
                 }
-                item.submenu=submenu; menu.addItem(item); menu.addItem(.separator())
+                item.submenu=submenu; item.isEnabled = !submenu.items.isEmpty && parent.editingEnabled && !rows.isEmpty; menu.addItem(item); menu.addItem(.separator())
             }
             if parent.remove != nil {add(parent.sourceID=="queue" ? "Remove from Queue" : "Remove from Playlist",.remove,parent.editingEnabled && !rows.isEmpty)}
             if parent.move != nil {
-                add("Move Up (⌘⌥↑)",.moveUp,parent.editingEnabled && !rows.isEmpty)
-                add("Move Down (⌘⌥↓)",.moveDown,parent.editingEnabled && !rows.isEmpty)
+                let ids=Set(rows.map(\.rowID))
+                let indexes=IndexSet(parent.tracks.indices.filter {ids.contains(parent.tracks[$0].rowID)})
+                add("Move Up (⌘⌥↑)",.moveUp,parent.editingEnabled && (indexes.first ?? 0)>0)
+                add("Move Down (⌘⌥↓)",.moveDown,parent.editingEnabled && !indexes.isEmpty && (indexes.last ?? 0)+1<parent.tracks.count)
             }
-            add("Show Queue",.showQueue)
+            if parent.sourceID != "queue" {add("Show Queue",.showQueue)}
         }
         func tableView(_ tableView:NSTableView,writeRowsWith rows:IndexSet,to board:NSPasteboard)->Bool {
             let selected=rows.compactMap {parent.tracks.indices.contains($0) ? parent.tracks[$0] : nil}
@@ -216,7 +241,7 @@ struct TrackTable: NSViewRepresentable {
         }
         func tableView(_ tableView:NSTableView,acceptDrop info:NSDraggingInfo,row:Int,dropOperation:NSTableView.DropOperation)->Bool {acceptPayload(info.draggingPasteboard,row:row)}
         @objc func doubleClick(_ sender: NSTableView) {
-            guard parent.tracks.indices.contains(sender.clickedRow) else { return }
+            guard parent.tracks.indices.contains(sender.clickedRow), !parent.tracks[sender.clickedRow].missing else { return }
             parent.play(parent.tracks[sender.clickedRow].rowID)
         }
     }

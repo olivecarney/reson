@@ -9,12 +9,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            if event.keyCode == 49, event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-               !(NSApp.keyWindow?.firstResponder is NSTextView), let model = self?.model {
+            if Self.handlesPlaybackSpace(event, responder: NSApp.keyWindow?.firstResponder), let model = self?.model {
                 model.togglePlayback(); return nil
             }
             return event
         }
+    }
+    static func handlesPlaybackSpace(_ event: NSEvent, responder: NSResponder?) -> Bool {
+        guard event.keyCode == 49, event.modifierFlags.intersection([.command,.control,.option,.shift]).isEmpty else {return false}
+        if responder is NSTextView {return false}
+        if responder is NSTableView {return true}
+        return !(responder is NSControl)
     }
     func application(_ application: NSApplication, open urls: [URL]) { if let path = urls.first?.path { model?.load(path) } }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
@@ -31,7 +36,7 @@ struct ResonApp: App {
         Window("Reson", id: "main") {
             ContentView(model: model)
                 .preferredColorScheme(.dark)
-                .frame(minWidth: 820, minHeight: 520)
+                .frame(minWidth: InterfaceStyle.windowMinimum.width, minHeight: InterfaceStyle.windowMinimum.height)
                 .onAppear { delegate.model = model; model.startLibrary() }
         }
         .defaultSize(width: 1180, height: 740)
@@ -57,6 +62,9 @@ struct ResonApp: App {
                 Button("Play Next") {if let track=model.selected {model.enqueue([track],next:true)}}.disabled(model.selected==nil)
                 Button("Add to Queue") {if let track=model.selected {model.enqueue([track],next:false)}}.disabled(model.selected==nil)
                 Button("Show Queue") {model.showQueue=true}.keyboardShortcut("j")
+            }
+            CommandGroup(after: .textEditing) {
+                Button("Search Library") {model.focusSearch()}.keyboardShortcut("f")
             }
             CommandGroup(after: .sidebar) {
                 Button("Toggle Sidebar") { model.showSidebar.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
