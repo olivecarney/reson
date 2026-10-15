@@ -14,7 +14,7 @@ struct TrackDrag: Codable {
         return value
     }
 }
-enum TrackRowAction: Int { case playNext, addQueue, remove, moveUp, moveDown, showQueue }
+enum TrackRowAction: Int { case playNext, addQueue, remove, moveUp, moveDown, showQueue, play }
 final class TrackListView: NSTableView {
     var rowAction: ((TrackRowAction)->Void)?
     override func keyDown(with event: NSEvent) {
@@ -23,6 +23,9 @@ final class TrackListView: NSTableView {
         }
         if [51,117].contains(event.keyCode), event.modifierFlags.intersection([.command,.option,.control,.shift]).isEmpty {
             rowAction?(.remove); return
+        }
+        if [36,76].contains(event.keyCode), event.modifierFlags.intersection([.command,.option,.control,.shift]).isEmpty {
+            rowAction?(.play); return
         }
         super.keyDown(with:event)
     }

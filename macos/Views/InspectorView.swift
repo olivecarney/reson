@@ -4,9 +4,9 @@ struct InspectorView: View {
     var artworkRevision: UInt64 = 0
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("TRACK DETAILS").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-                ArtworkView(path: track?.path ?? "", pixels: 384, revision: artworkRevision).frame(width: 210, height: 210)
+            VStack(alignment: .leading, spacing: 12) {
+                Text("SELECTED TRACK").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+                ArtworkView(path: track?.path ?? "", pixels: 384, revision: artworkRevision).frame(width: 176, height: 176).frame(maxWidth: .infinity)
                 if let track {
                     VStack(alignment: .leading, spacing: 6) { Text(track.displayTitle).font(.system(size: 18, weight: .semibold)).lineLimit(3).textSelection(.enabled); Text(track.artist ?? "Unknown artist").font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(2) }
                     Divider()
@@ -24,8 +24,8 @@ struct InspectorView: View {
                     Text("FILE LOCATION").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
                     Text(track.path).font(.system(size: 11)).foregroundStyle(.secondary).textSelection(.enabled)
                 } else { Text("Select a track to see its details.").foregroundStyle(.secondary) }
-            }.padding(20)
-        }.background(Color.white.opacity(0.02))
+            }.padding(InterfaceStyle.panelPadding)
+        }.background(.regularMaterial)
     }
     private func row(_ label: String, _ value: String) -> some View { HStack(alignment: .top) { Text(label).foregroundStyle(.secondary); Spacer(); Text(value).multilineTextAlignment(.trailing).lineLimit(3).textSelection(.enabled) }.font(.system(size: 12)) }
 }

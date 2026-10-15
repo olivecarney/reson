@@ -4,9 +4,9 @@ A lightweight native macOS player for local lossless music.
 
 Rust handles playback. SwiftUI and AppKit provide the interface. No accounts, telemetry, cloud services or browser engine.
 
-**Status: v0.4 playback and audio refinements.** Seek and scrub local FLAC/WAV tracks, adjust app volume/mute, select output devices, and inspect source versus output formats. Persistent playlists, independent queues and M3U8 exchange remain available.
+**Status: v0.5 interface and UX refinement.** Compact native tables, resizable side panels, adaptable header actions, a grouped transport and clearer queue/inspector presentation accompany the existing lossless playback, playlists and M3U8 exchange.
 
-See [audio behaviour and controls](docs/audio-v0.4.md), [v0.4 validation and measurements](docs/validation-v0.4.md), and [playlist behaviour](docs/playlists-v0.3.md).
+See [interface and keyboard behaviour](docs/interface-v0.5.md), [v0.5 validation and measurements](docs/validation-v0.5.md), [audio behaviour and controls](docs/audio-v0.4.md), [v0.4 validation and measurements](docs/validation-v0.4.md), and [playlist behaviour](docs/playlists-v0.3.md).
 
 v0.2 adds a background Rust library worker using macOS system SQLite through `rusqlite`, without bundled SQLite. See the [library design](docs/library-v0.2.md), [validation and measurements](docs/validation-v0.2.md), and [database decision](docs/spikes/system-sqlite.md).
 
@@ -64,9 +64,9 @@ The project requests macOS 14 or later. The initial build machine's Homebrew Rus
 | Open and play a file | **⌘O** or Open File |
 | Import a folder | **⇧⌘O** or Import Folder |
 | Rescan saved folders | File → Rescan Folders |
-| Search / sort | Search field / column headers |
-| Play a track | Double-click its row |
-| Pause / resume | **Space** or the playback button |
+| Search / sort | **⌘F** to focus Library search / column headers |
+| Play a track | **Return**, double-click its row or context menu → Play |
+| Pause / resume | **Space** outside focused controls, or the playback button |
 | Stop and reset position | Stop button |
 | Seek / scrub | Click or drag the timeline; arrow keys ±5 seconds, Home/End |
 | App gain / mute | Volume slider / speaker button; saved between launches |
@@ -80,6 +80,8 @@ The project requests macOS 14 or later. The initial build machine's Homebrew Rus
 | Remove selected playlist/queue rows | **Delete** |
 | Toggle sidebar | **⌃⌘S** |
 | Toggle inspector | **⌥⌘I** |
+
+Drag the panel dividers to resize the sidebar and inspector. At reduced width, the header exposes a native actions menu and the table scrolls horizontally. Queue access is also available in the header; Escape closes its sheet.
 
 The inspector follows the selected row; the playback bar follows the currently playing file. After Stop, Play restarts from the beginning.
 
