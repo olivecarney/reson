@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: PlayerModel?
     private var keyMonitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -33,14 +34,18 @@ struct ResonApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = PlayerModel()
     var body: some Scene {
-        Window("Reson", id: "main") {
+        Window("reson", id: "main") {
             ContentView(model: model)
                 .preferredColorScheme(.dark)
                 .frame(minWidth: InterfaceStyle.windowMinimum.width, minHeight: InterfaceStyle.windowMinimum.height)
                 .onAppear { delegate.model = model; model.startLibrary() }
         }
         .defaultSize(width: 1180, height: 740)
+        .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(replacing: .appInfo) {
+                Button("About reson") {NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"reson"])}
+            }
             CommandGroup(replacing: .newItem) { Button("Open File…") { model.openFile() }.keyboardShortcut("o")
                 Button("Import Folder…") { model.importFolder() }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.importBusy)
                 Button("Rescan Folders") { model.rescanFolders() }.disabled(model.importBusy)

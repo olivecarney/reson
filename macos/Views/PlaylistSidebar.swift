@@ -1,6 +1,62 @@
 import SwiftUI
 import AppKit
 
+// A native source-list row gives Library the same focus, selection and vibrancy as playlists.
+struct LibraryNavigationRow: NSViewRepresentable {
+    let selected: Bool
+    let select: () -> Void
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSScrollView()
+        let table = NSTableView()
+        table.setAccessibilityLabel("Library")
+        table.headerView = nil; table.style = .sourceList; table.rowHeight = 30
+        table.backgroundColor = .clear
+        table.addTableColumn(NSTableColumn(identifier: .init("library")))
+        table.delegate = context.coordinator; table.dataSource = context.coordinator
+        scroll.documentView = table; scroll.drawsBackground = false
+        context.coordinator.update(self, table: table)
+        return scroll
+    }
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let table = scroll.documentView as? NSTableView else { return }
+        context.coordinator.update(self, table: table)
+    }
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        var parent: LibraryNavigationRow
+        private var updating = false
+        init(_ parent: LibraryNavigationRow) { self.parent = parent }
+        func update(_ next: LibraryNavigationRow, table: NSTableView) {
+            updating = true; defer { updating = false }
+            parent = next
+            if next.selected { table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false) }
+            else { table.deselectAll(nil) }
+        }
+        func numberOfRows(in tableView: NSTableView) -> Int { 1 }
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            let cell = NSTableCellView()
+            let label = NSTextField(labelWithString: "All Tracks")
+            label.font = .systemFont(ofSize: 13); label.translatesAutoresizingMaskIntoConstraints = false
+            let image = NSImageView(image: NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)!)
+            image.translatesAutoresizingMaskIntoConstraints = false
+            cell.addSubview(label); cell.textField = label; cell.addSubview(image); cell.imageView = image
+            NSLayoutConstraint.activate([
+                image.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
+                image.widthAnchor.constraint(equalToConstant: 14), image.heightAnchor.constraint(equalToConstant: 14),
+                image.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+                label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 28),
+                label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
+                label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+            ])
+            return cell
+        }
+        private func activate() { if !updating, !parent.selected { parent.select() } }
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            if let table = notification.object as? NSTableView, table.selectedRow == 0 { activate() }
+        }
+    }
+}
+
 struct PlaylistSidebar: NSViewRepresentable {
     let playlists: [PlaylistRecord]
     let selection: Int64?

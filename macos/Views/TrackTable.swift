@@ -31,9 +31,10 @@ struct TrackTable: NSViewRepresentable {
         table.autosaveTableColumns = true
         table.backgroundColor = .clear; table.usesAlternatingRowBackgroundColors = false
         table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",64)] {
+        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",84)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
-            column.title = title; column.headerCell.alignment = ["bpm", "duration"].contains(id) ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : 40))
+            if id == "duration" {column.headerCell = TimeColumnHeaderCell(textCell:title)}
+            column.title = title; column.headerCell.alignment = ["bpm", "duration"].contains(id) ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : (id == "duration" ? 72 : 40)))
             if id == "art" { column.maxWidth = 36; column.resizingMask = [] }
             if id != "art", sourceID=="library" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
@@ -131,23 +132,23 @@ struct TrackTable: NSViewRepresentable {
                 cell.configure(path: track.path, cache: parent.artworkCache)
                 return cell
             }
-            let cell: NSTableCellView
-            if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView,
+            let cell: MetadataCell
+            if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? MetadataCell,
                reused.textField != nil {
                 cell = reused
             } else {
-                cell = NSTableCellView()
+                cell = MetadataCell()
                 cell.identifier = identifier
                 let label = NSTextField(labelWithString: "")
                 cell.addSubview(label); label.translatesAutoresizingMaskIntoConstraints = false
-                NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: cell.leadingAnchor),label.trailingAnchor.constraint(equalTo: cell.trailingAnchor),label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)])
+                NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo: cell.leadingAnchor),label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: id == "duration" ? -12 : 0),label.centerYAnchor.constraint(equalTo: cell.centerYAnchor)])
                 cell.textField = label
             }
             let label = cell.textField!
             switch id { case "title": label.stringValue = (track.rowID==parent.playingID ? "▶ " : "") + track.displayTitle + (track.missing ? " · Missing" : ""); case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "bpm": label.stringValue = track.bpm.map { String(format: "%g", $0) } ?? "—"; case "key": label.stringValue = track.key ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
-            label.font = .systemFont(ofSize: 12, weight: id == "title" ? .medium : .regular)
-            label.textColor = id == "title" ? .labelColor : .secondaryLabelColor
-            if track.missing { label.textColor = .tertiaryLabelColor }
+            label.font = ["bpm", "duration"].contains(id) ? .monospacedDigitSystemFont(ofSize: 13, weight: .regular) : InterfaceStyle.tableFont
+            cell.normalTextColor = track.missing ? .secondaryLabelColor : (id == "title" ? .labelColor : .secondaryLabelColor)
+            cell.updateTextColor()
             label.alignment = ["bpm", "duration"].contains(id) ? .right : .left
             cell.toolTip = label.stringValue
             label.setAccessibilityLabel((tableColumn?.title.isEmpty == false ? tableColumn!.title : id.capitalized) + ": " + label.stringValue)
@@ -255,5 +256,24 @@ func timeLabel(_ seconds: Double) -> String {
 private extension PlaybackSnapshot {
     var tableContent: [String] {
         [displayTitle, artist ?? "—", album ?? "—", format, timeLabel(duration), bpm.map { String(format: "%g", $0) } ?? "—", key ?? "—", String(missing)]
+    }
+}
+
+private final class TimeColumnHeaderCell: NSTableHeaderCell {
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        var padded=cellFrame
+        padded.size.width=max(0,cellFrame.width-12)
+        super.drawInterior(withFrame:padded,in:controlView)
+    }
+}
+
+// AppKit updates backgroundStyle when selection/focus changes, including reused views.
+final class MetadataCell: NSTableCellView {
+    var normalTextColor: NSColor = .labelColor
+    override var backgroundStyle: NSView.BackgroundStyle {
+        didSet { updateTextColor() }
+    }
+    func updateTextColor() {
+        textField?.textColor = backgroundStyle == .emphasized ? .alternateSelectedControlTextColor : normalTextColor
     }
 }

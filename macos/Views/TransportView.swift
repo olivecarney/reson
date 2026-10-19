@@ -13,17 +13,17 @@ struct TransportView: View {
             }
             HStack(spacing: 10) {
                 Text(timeLabel(model.timeline.display(model.playback))).frame(width:42,alignment:.trailing)
-                TimelineSlider(value:model.timeline.display(model.playback),duration:model.playback.duration,enabled:model.playback.canSeek,begin:model.beginScrub,update:model.scrub,finish:model.endScrub).frame(height:16)
+                TimelineSlider(value:model.timeline.display(model.playback),duration:model.playback.duration,enabled:model.playback.canSeek,begin:model.beginScrub,update:model.scrub,finish:model.endScrub).disabled(!model.playback.canSeek).frame(height:16)
                 Text(timeLabel(model.playback.duration)).frame(width:42,alignment:.leading)
-            }.font(.system(size:10,design:.monospaced)).foregroundStyle(.secondary)
-        }.onAppear {model.refreshDevices()}.padding(.horizontal,16).padding(.vertical,10).background(.bar)
+            }.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
+        }.modifier(ChromeGlassGroup()).onAppear {model.refreshDevices()}.padding(.horizontal,16).padding(.vertical,10).background { NativeBarMaterial(material: .titlebar) }
     }
     private var trackIdentity: some View {
         HStack(spacing: 10) {
             ArtworkView(path:model.playback.path, revision:model.artworkRevision).frame(width:36,height:36)
             VStack(alignment:.leading,spacing:3) {
-                Text(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle).font(.system(size:12,weight:.medium)).lineLimit(1).help(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle)
-                Text(model.playback.artist ?? model.playback.stateLabel).font(.system(size:11)).foregroundStyle(.secondary).lineLimit(1)
+                Text(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle).font(.system(size:13,weight:.medium)).lineLimit(1).help(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle)
+                Text(model.playback.artist ?? model.playback.stateLabel).font(.system(size:12)).foregroundStyle(.secondary).lineLimit(1)
             }.frame(minWidth:100,maxWidth:.infinity,alignment:.leading)
             if model.playback.state == 1 {ProgressView().controlSize(.small).accessibilityLabel("Loading audio")}
         }
@@ -32,9 +32,10 @@ struct TransportView: View {
         HStack(spacing: 4) {
             transportButton("backward.end.fill", "Previous Track", "Previous Track (⌥⌘P)", enabled:model.canPrevious, action:model.previousTrack)
             transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play", "Play / Pause (Space)", enabled:!model.playback.path.isEmpty && model.playback.state != 1, action:model.togglePlayback)
+                .font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 34)
             transportButton("stop.fill", "Stop", "Stop playback", enabled:!model.playback.path.isEmpty, action:model.stop)
             transportButton("forward.end.fill", "Next Track", "Next Track (⌥⌘N)", enabled:model.canNext, action:model.nextTrack)
-        }.padding(.horizontal,4)
+        }.padding(.horizontal,6).padding(.vertical,2).modifier(ControlGlass())
     }
     private var outputControls: some View {
         HStack(spacing: 8) {
@@ -50,7 +51,7 @@ struct TransportView: View {
             } label:{Image(systemName:"hifispeaker")}.menuStyle(.borderlessButton).frame(width:28).help(model.outputSelection.label).accessibilityLabel("Output device: \(model.outputSelection.label)")
             transportButton("info.circle","Playback audio details","Source and output audio details",enabled:true) {model.refreshDevices();details.toggle()}
                 .popover(isPresented:$details) {audioDetails.padding(16).frame(width:320)}
-        }
+        }.padding(.horizontal, 4)
     }
     private func transportButton(_ symbol:String, _ label:String, _ help:String, enabled:Bool, action:@escaping ()->Void)->some View {
         Button(action:action) {Image(systemName:symbol).frame(width:InterfaceStyle.controlSize,height:InterfaceStyle.controlSize).contentShape(Rectangle())}
