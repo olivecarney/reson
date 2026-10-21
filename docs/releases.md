@@ -31,7 +31,7 @@ For a failed publish job, rerun that job while its build artifact is still avail
 ./scripts/package.sh
 ```
 
-The output is `build/dist/Reson-<version>-macos-arm64.dmg` and its `.sha256` file. `scripts/dmg-settings.py` defines the icon layout and Applications shortcut without automating Finder. The packaging environment uses pinned packages and hashes from `scripts/requirements-packaging.txt`; they are build-time dependencies, not app dependencies.
+The output is `build/dist/Reson-<version>-macos-arm64.dmg` and its `.sha256` file. `scripts/dmg-settings.py` defines the icon layout and Applications shortcut without automating Finder. `scripts/dmg-background.swift` renders the neutral installer background and instruction text with native typography. The packaging environment uses pinned packages and hashes from `scripts/requirements-packaging.txt`; they are build-time dependencies, not app dependencies.
 
 `RESON_RELEASE_TAG=v0.5.2 ./scripts/package.sh` optionally checks tag/version agreement before packaging. Verification failures stop before promoting the new image to `build/dist/`.
 

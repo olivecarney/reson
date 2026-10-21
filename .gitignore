@@ -33,3 +33,7 @@ macos/.swiftpm/
 *.db
 *.db-wal
 *.db-shm
+
+# Python test and tooling bytecode.
+__pycache__/
+*.py[cod]

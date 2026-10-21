@@ -8,9 +8,11 @@ On a configured Apple Silicon development Mac, run:
 ./scripts/check.sh
 ```
 
-This checks Rust formatting, runs Rust tests and Clippy with warnings denied, builds the release app, runs Swift tests, and validates the C header, bundle metadata and signature. The build generates the app icon and dependency notices before signing.
+This runs release-script regression checks, checks Rust formatting, runs Rust tests and Clippy with warnings denied, builds the release app, runs Swift tests, and validates the C header, bundle metadata and signature. The build generates the app icon and dependency notices before signing.
 
 Rust tests cover decoding, metadata, playback state, command ordering, stale-work fencing, C ownership/buffer contracts, imports, playlists, M3U8 exchange and database recovery. They do not require an audio output device. Swift tests cover bridge lifetime, playback coordination, artwork, native table interactions, focus, accessibility and compact layouts. Tests use synthetic fixtures and temporary storage.
+
+The release-script tests use an isolated fake GitHub CLI and synthetic payloads to check first publication, existing releases, tag immutability, API errors and corrupted checksums. They never contact GitHub or publish anything.
 
 Some Swift tests are opt-in because they open CoreAudio streams or generate large benchmark workloads. A default skip for those tests is expected. Do not enable them against a personal library or use passing tests as evidence of audible or bit-perfect playback.
 

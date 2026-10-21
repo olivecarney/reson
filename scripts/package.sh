@@ -24,7 +24,8 @@ reson_cleanup() {
 }
 trap reson_cleanup EXIT
 reson_image="Reson-$reson_version-macos-arm64.dmg"
-"$reson_venv/bin/dmgbuild" -s scripts/dmg-settings.py -D "app=$reson_app" \
+swift scripts/dmg-background.swift "$reson_work/background.png"
+"$reson_venv/bin/dmgbuild" -s scripts/dmg-settings.py -D "app=$reson_app" -D "background=$reson_work/background.png" \
     "Reson $reson_version" "$reson_work/$reson_image"
 hdiutil verify "$reson_work/$reson_image" >/dev/null
 hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$reson_mount" \

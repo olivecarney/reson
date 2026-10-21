@@ -18,10 +18,16 @@ if reson_draft=$(gh release view "$reson_tag" --json isDraft --jq .isDraft 2>/de
     echo "$reson_tag is already published; leaving it unchanged."
     exit 0
 fi
-reson_existing=$(gh api "repos/$GH_REPO/commits/$reson_tag" --jq .sha 2>/dev/null || true)
-if [[ -n "$reson_existing" && "$reson_existing" != "$reson_commit" ]]; then
-    echo "$reson_tag points to another commit; use a new version." >&2
-    exit 1
+# A missing commit endpoint returns error JSON on stdout. Query refs first so
+# absence is an empty successful response and API failures remain fatal.
+reson_ref=$(gh api "repos/$GH_REPO/git/matching-refs/tags/$reson_tag" \
+    --jq ".[] | select(.ref == \"refs/tags/$reson_tag\") | .ref")
+if [[ -n "$reson_ref" ]]; then
+    reson_existing=$(gh api "repos/$GH_REPO/commits/$reson_tag" --jq .sha)
+    if [[ "$reson_existing" != "$reson_commit" ]]; then
+        echo "$reson_tag points to another commit; use a new version." >&2
+        exit 1
+    fi
 fi
 reson_image="Reson-$reson_version-macos-arm64.dmg"
 (cd build/dist && sha256sum -c "$reson_image.sha256")
