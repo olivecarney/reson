@@ -1,3 +1,12 @@
+## Source changes after the published v0.5.2 DMG
+
+- Added local MP3 playback and indexing through Symphonia, with lazy ID3 APIC artwork.
+- Ignore macOS metadata sidecars during import.
+- Native Settings (⌘,) manages folders, scans and excluded-track restoration.
+- Remove selected library tracks or registered folders without deleting music; preserve playlist paths for recovery.
+- Isolate test/development databases, artwork and preferences from personal use.
+- Added a verified [Homebrew cask](https://github.com/olivecarney/homebrew-tap) for the existing release DMG. These source changes require a new release before they appear in that download.
+
 ## Changes in 0.5.2
 
 - Added a drag-to-Applications DMG installer with a checksum.

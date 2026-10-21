@@ -41,11 +41,7 @@ final class LibraryBridge: @unchecked Sendable {
         if let handle { return handle }
         let url: URL
         if let databaseURL { url = databaseURL }
-        else if let override = ProcessInfo.processInfo.environment["RESON_LIBRARY_PATH"] { url = URL(fileURLWithPath: override) }
-        else {
-            url = try FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-                .appendingPathComponent("Reson/library.db")
-        }
+        else { url = RuntimeStorage.current.database }
         let bytes = Array(url.path.utf8)
         var created: OpaquePointer?
         let code = bytes.withUnsafeBufferPointer { reson_library_create($0.baseAddress, $0.count, &created) }
@@ -87,3 +83,5 @@ struct PlaylistEntryRecord: Decodable {
     var snapshot: PlaybackSnapshot { var s=track.snapshot; s.entryID=id; if track.id==0 {s.libraryID=nil}; return s }
 }
 struct PlaylistPage: Decodable { let entries: [PlaylistEntryRecord], revision: Int64, library_revision: UInt64 }
+
+struct LibrarySources: Decodable { let folders: [String], exclusions: [String] }

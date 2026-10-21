@@ -107,7 +107,7 @@ fn killed_uncommitted_migration_rolls_back_then_v1_migrates_successfully() {
         .unwrap();
     drop(store);
     let c = rusqlite::Connection::open(&db).unwrap();
-    c.execute_batch("DROP TABLE playlist_entries; DROP TABLE playlists; PRAGMA user_version=1;")
+    c.execute_batch("DROP TABLE library_exclusions; DROP TABLE playlist_entries; DROP TABLE playlists; PRAGMA user_version=1;")
         .unwrap();
     drop(c);
     let mut child = Command::new(std::env::current_exe().unwrap())

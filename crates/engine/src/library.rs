@@ -72,7 +72,7 @@ impl LibraryStore {
         let mut connection = Connection::open(path)?;
         connection.busy_timeout(std::time::Duration::from_secs(2))?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-        if version > 2 {
+        if version > 3 {
             return Err("Library was created by a newer Reson version".into());
         }
         connection.execute_batch(
@@ -88,6 +88,12 @@ impl LibraryStore {
             tx.execute_batch("CREATE TABLE playlists(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0); CREATE TABLE playlist_entries(id INTEGER PRIMARY KEY AUTOINCREMENT,playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,track_id INTEGER REFERENCES tracks(id) ON DELETE SET NULL,path TEXT NOT NULL,title TEXT NOT NULL,duration REAL,position INTEGER NOT NULL); CREATE INDEX playlist_order ON playlist_entries(playlist_id,position,id); PRAGMA user_version=2;")?;
             tx.commit()?;
         }
+        if version < 3 {
+            let tx = connection.transaction()?;
+            tx.execute_batch("CREATE TABLE library_exclusions(path TEXT PRIMARY KEY NOT NULL); PRAGMA user_version=3;")?;
+            tx.commit()?;
+        }
+        connection.prepare("SELECT path FROM library_exclusions LIMIT 0")?;
         // Validate even existing databases before returning a usable handle.
         connection.prepare("SELECT id,path,title,artist,album,genre,duration,sample_rate,channels,bit_depth,format,bpm,musical_key,size,modified,imported,missing FROM tracks LIMIT 0")?;
         connection.prepare("SELECT id,path,imported,last_scan FROM folders LIMIT 0")?;
@@ -150,7 +156,8 @@ impl LibraryStore {
         Ok(paths)
     }
     pub fn begin_scan(&mut self, path: &Path) -> Result<Scan> {
-        let scan = Scan::new(path)?;
+        let mut scan = Scan::new(path)?;
+        scan.excluded = self.exclusions()?.into_iter().map(PathBuf::from).collect();
         self.connection.execute(
             "INSERT INTO folders(path,imported) VALUES(?1,?2) ON CONFLICT(path) DO NOTHING",
             params![scan.root.to_str().ok_or("Folder path is not UTF-8")?, now()],
@@ -185,6 +192,9 @@ impl LibraryStore {
                 scan.summary.error = Some(e);
             }
             Ok(path) => {
+                if scan.excluded.contains(&path) {
+                    return Ok(true);
+                }
                 scan.summary.visited += 1;
                 match index(&path) {
                     Ok(track) => {
@@ -260,6 +270,7 @@ pub struct Scan {
     stack: Vec<std::fs::ReadDir>,
     pub summary: ScanSummary,
     complete: bool,
+    excluded: std::collections::HashSet<PathBuf>,
 }
 impl Scan {
     fn new(path: &Path) -> Result<Self> {
@@ -270,6 +281,7 @@ impl Scan {
             stack: vec![entries],
             summary: ScanSummary::default(),
             complete: true,
+            excluded: Default::default(),
         })
     }
     fn next(&mut self) -> Option<std::result::Result<PathBuf, String>> {
@@ -281,6 +293,9 @@ impl Scan {
                 }
                 Some(Err(e)) => return Some(Err(e.to_string())),
                 Some(Ok(e)) => {
+                    if is_metadata_name(&e.file_name()) {
+                        continue;
+                    }
                     let ty = match e.file_type() {
                         Ok(t) => t,
                         Err(e) => return Some(Err(e.to_string())),
@@ -298,7 +313,9 @@ impl Scan {
                             .extension()
                             .and_then(|s| s.to_str())
                             .is_some_and(|s| {
-                                s.eq_ignore_ascii_case("wav") || s.eq_ignore_ascii_case("flac")
+                                s.eq_ignore_ascii_case("wav")
+                                    || s.eq_ignore_ascii_case("flac")
+                                    || s.eq_ignore_ascii_case("mp3")
                             })
                     {
                         return Some(Ok(e.path()));
@@ -351,7 +368,13 @@ fn index(path: &Path) -> Result<Track> {
             ..MetadataOptions::default()
         },
     )?;
-    if let Some(meta) = p.format.metadata().current() {
+    let mut metadata = p.metadata.get();
+    let format_metadata = p.format.metadata();
+    if let Some(meta) = metadata
+        .as_mut()
+        .and_then(|m| m.current())
+        .or_else(|| format_metadata.current())
+    {
         for tag in meta.tags() {
             let text = tag
                 .value
@@ -382,4 +405,10 @@ fn index(path: &Path) -> Result<Track> {
         }
     }
     Ok(track)
+}
+
+// Check names before file-type queries or probing. AppleDouble leaves are not audio.
+fn is_metadata_name(name: &std::ffi::OsStr) -> bool {
+    let name = name.to_string_lossy();
+    name.starts_with("._") || name == ".DS_Store" || name == "__MACOSX"
 }

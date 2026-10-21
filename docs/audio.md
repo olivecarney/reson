@@ -1,6 +1,6 @@
 # Audio behaviour and limits
 
-Reson supports local FLAC and PCM WAV playback using rodio, Symphonia and cpal/CoreAudio. Exact dependency versions are recorded in `Cargo.lock`.
+Reson supports local FLAC, PCM WAV and MP3 playback using rodio, Symphonia and cpal/CoreAudio. Exact dependency versions are recorded in `Cargo.lock`.
 
 ## Source and output
 
@@ -29,3 +29,5 @@ Device-change, xrun and scheduling notices are nonfatal when the stream remains 
 - Automated command/state tests do not prove audible continuity, output precision or freedom from glitches. Listening and loopback measurements are separate checks.
 
 See [testing](testing.md) for optional real-device checks and [performance](performance.md) for measurement guidance.
+
+MP3 uses Symphonia’s MPEG Layer III decoder through the existing engine. It is lossy and has no source PCM bit depth; duration and seek precision depend on MP3 headers and encoder padding. AAC, ALAC, streams and other codecs remain unsupported. ID3v2.3/v2.4 APIC artwork is read lazily within fixed size limits; unsupported ID3 flags or image formats use the native placeholder.

@@ -15,13 +15,27 @@ open "/Applications/Reson.app"
 
 This applies only to Reson. For a permissions error, use Open Anyway. See the [first-launch instructions](../README.md#first-launch-approval) for details.
 
+The MP3 and library-management features below currently require a source build; the existing v0.5.2 release DMG predates them. Homebrew installs that published DMG.
+
 ## Add music
 
-Use **File → Open File…** (**⌘O**) to play a FLAC or PCM WAV file. Files opened this way are session-only unless they are already in the library.
+Use **File → Open File…** (**⌘O**) to play a FLAC, PCM WAV or MP3 file. Files opened this way are session-only unless they are already in the library.
 
 Use **File → Import Folder…** (**⇧⌘O**) to index a folder and its subfolders. Reson records metadata and file locations without copying or modifying your music. Symlinks are skipped. You can cancel an import; tracks already indexed remain available.
 
 Folder imports and playlists persist between launches. Select **File → Rescan Folders** after adding or changing files. There is no automatic folder watcher. Missing files remain marked in the library; moved or renamed files are indexed at their new paths rather than automatically relinked. Unsupported or unreadable files are skipped during import.
+
+## Settings and library removal
+
+Open **Reson → Settings…** with **⌘,**. General contains playback volume, mute and version information. Library lists registered folders, offers Add Folder, Remove Folder and Rescan Folders, and shows scan progress and cancellation. **Reson → About reson** opens the standard macOS About panel.
+
+Select one or more indexed tracks in All Tracks (up to 1,000 at a time), right-click and choose **Remove from Library…**, then confirm. Only database records are removed; original files stay on disk. Current playback and queued sources continue independently. Playlist entries remain in their original order and show Missing until restored.
+
+Removed tracks are excluded by their canonical path. Exclusions persist across rescans, restarts and file replacements at that path. In Library Settings, select an excluded path and choose **Restore Track** to clear its exclusion and rescan registered folders. Missing or unreadable sources can be restored when available. A new filename is a new path and can be imported normally. Opening a file directly plays it without restoring its indexed record.
+
+Removing a folder keeps tracks covered by other registered folders, including nested sources. It also preserves playlists and all original files. Exclusions stay while another source covers them; removing their last covering folder clears them, so adding that folder again performs a fresh import. Wait for a scan to finish or cancel it before removing tracks or folders.
+
+AppleDouble `._*` sidecars, `.DS_Store` and `__MACOSX` directories are ignored before audio probing. Genuine corrupt audio still reports an import error.
 
 ## Browse and play
 
@@ -29,7 +43,7 @@ Search the library with **⌘F**. Search covers titles, artists, albums, genre a
 
 Double-click a track, select it and press **Return**, or choose **Play** from its context menu. Missing tracks cannot be played. The inspector follows your selection; the playback bar follows the currently playing track. These can show different tracks.
 
-Artwork comes from embedded FLAC or supported WAV/ID3 tags. Reson does not fetch covers online. Unsupported or missing images show a placeholder. Rescan after replacing embedded artwork.
+Artwork comes from embedded FLAC pictures or supported WAV/MP3 ID3 APIC tags. Reson does not fetch covers online. Unsupported or missing images show a placeholder. Rescan after replacing embedded artwork.
 
 ## Playback controls
 
@@ -79,4 +93,4 @@ Drag the pane dividers to resize the sidebar and inspector. At smaller window si
 
 To back up the library, quit Reson before copying its application-support directory. Deleting the library database removes saved imports and playlists, not audio files. The artwork cache can be deleted while Reson is closed; thumbnails regenerate when needed.
 
-For a missing track, check that its drive is mounted and its original path exists, then rescan. For silence, check Reson mute/volume, the selected output and macOS output settings. Try another known-good FLAC/WAV. Report reproducible problems through the [issue tracker](https://github.com/olivecarney/reson/issues), including app/macOS versions, audio format and output device. Remove private paths from logs and screenshots.
+For a missing track, check that its drive is mounted and its original path exists, then rescan. For silence, check Reson mute/volume, the selected output and macOS output settings. Try another known-good FLAC/WAV/MP3. Report reproducible problems through the [issue tracker](https://github.com/olivecarney/reson/issues), including app/macOS versions, audio format and output device. Remove private paths from logs and screenshots.

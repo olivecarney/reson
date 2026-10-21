@@ -16,9 +16,15 @@ The release-script tests use an isolated fake GitHub CLI and synthetic payloads 
 
 Some Swift tests are opt-in because they open CoreAudio streams or generate large benchmark workloads. A default skip for those tests is expected. Do not enable them against a personal library or use passing tests as evidence of audible or bit-perfect playback.
 
+## Storage isolation
+
+XCTest automatically uses a unique temporary root for default databases, WAL/SHM, artwork and file-backed preferences, even if a test omits explicit injection. Debug executables and `scripts/run.sh` use separate development storage and identity. No tests should launch the production bundle.
+
+For an isolated release smoke build, copy the app into temporary storage, give its Info.plist the bundle ID `dev.reson.player.smoke`, re-sign it ad-hoc, then launch with `open -n <temporary-app> --env RESON_DATA_ROOT=<absolute-temporary-root>`. This identity refuses to launch without an explicit root. `RESON_DATA_ROOT` isolates all app-owned storage together; `RESON_ISOLATED=1` without a root, invalid paths, escaping storage links and the old database-only `RESON_LIBRARY_PATH` override fail closed. Native window/table preferences use the distinct smoke bundle domain. Never reset the personal library to prepare a test.
+
 ## Fixtures
 
-Small original WAV/FLAC fixtures are checked in. To regenerate them, install ffmpeg and run:
+Small original WAV/FLAC/MP3 fixtures are checked in. To regenerate them, install ffmpeg and run:
 
 ```sh
 python3 scripts/generate-fixtures.py
@@ -34,7 +40,7 @@ Generate silent playback and boundary-marker fixtures in ignored build storage:
 python3 scripts/generate-audio-fixtures.py build/audio-fixtures
 RESON_AUDIO_FIXTURES="$PWD/build/audio-fixtures" RESON_NATIVE_PLAYBACK_TEST=1 \
   swift test --package-path macos \
-  --filter 'AudioRefinementIntegrationTests|TransitionIntegrationTests|PlaylistIntegrationTests'
+  --filter 'AudioRefinementIntegrationTests|TransitionIntegrationTests|PlaylistIntegrationTests|LibraryManagementTests'
 ```
 
 These tests open real output streams. Audio-refinement tests use silent or muted fixtures; treat any device test as capable of producing sound. The default build must exist before Swift tests can link the Rust library. Use a controlled output and safe listening volume.
@@ -53,6 +59,6 @@ This checks engine state with a real output and produces sound. It does not meas
 
 ## Manual review
 
-For playback changes, try FLAC/WAV, pause/resume, seeking, Stop/restart, EOF progression, missing files and device recovery. For UI changes, check keyboard navigation, focus, long metadata, compact windows and accessibility settings. For a release, run `./scripts/package.sh`, inspect the DMG's Finder layout and icon, drag the app to an isolated test location, confirm it opens and verify the published checksum. Packaging already verifies the mounted app's signature and Applications shortcut. Check the icon on both light and dark backgrounds; the surround must be transparent. Record the app commit, macOS version and output hardware in your PR.
+For playback changes, try FLAC/WAV/MP3, pause/resume, seeking, Stop/restart, EOF progression, missing files and device recovery. For UI changes, check keyboard navigation, focus, long metadata, compact windows and accessibility settings. For a release, run `./scripts/package.sh`, inspect the DMG's Finder layout and icon, drag the app to an isolated test location, confirm it opens and verify the published checksum. Packaging already verifies the mounted app's signature and Applications shortcut. Check the icon on both light and dark backgrounds; the surround must be transparent. Record the app commit, macOS version and output hardware in your PR.
 
 See [performance](performance.md) for optional benchmarks.

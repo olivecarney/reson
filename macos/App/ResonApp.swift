@@ -44,7 +44,7 @@ struct ResonApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button("About reson") {NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"reson"])}
+                Button("About reson") {NSApp.orderFrontStandardAboutPanel(options:[.applicationName:"reson", .credits:NSAttributedString(string:"https://github.com/olivecarney/reson")])}
             }
             CommandGroup(replacing: .newItem) { Button("Open File…") { model.openFile() }.keyboardShortcut("o")
                 Button("Import Folder…") { model.importFolder() }.keyboardShortcut("o", modifiers: [.command, .shift]).disabled(model.importBusy)
@@ -76,5 +76,6 @@ struct ResonApp: App {
                 Button("Toggle Inspector") { model.showInspector.toggle() }.keyboardShortcut("i", modifiers: [.command, .option])
             }
         }
+        Settings { SettingsView(model:model) }
     }
 }

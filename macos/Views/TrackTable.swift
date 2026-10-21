@@ -205,7 +205,7 @@ struct TrackTable: NSViewRepresentable {
                 }
                 item.submenu=submenu; item.isEnabled = !submenu.items.isEmpty && parent.editingEnabled && !rows.isEmpty; menu.addItem(item); menu.addItem(.separator())
             }
-            if parent.remove != nil {add(parent.sourceID=="queue" ? "Remove from Queue" : "Remove from Playlist",.remove,parent.editingEnabled && !rows.isEmpty)}
+            if parent.remove != nil {add(parent.sourceID=="queue" ? "Remove from Queue" : (parent.sourceID=="library" ? "Remove from Library…" : "Remove from Playlist"),.remove,parent.editingEnabled && !rows.isEmpty)}
             if parent.move != nil {
                 let ids=Set(rows.map(\.rowID))
                 let indexes=IndexSet(parent.tracks.indices.filter {ids.contains(parent.tracks[$0].rowID)})

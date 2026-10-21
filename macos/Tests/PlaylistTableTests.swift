@@ -82,3 +82,18 @@ extension PlaylistTableTests {
         XCTAssertEqual(table.selectedRowIndexes,IndexSet(integer:0));XCTAssertEqual(selection,"e:2")
     }
 }
+
+
+extension PlaylistTableTests {
+    func testLibraryRemovalMenuUsesAllSelectedTracks() {
+        var removed:[String]=[]
+        let parent=TrackTable(tracks:rows(),selection:.constant(nil),play:{_ in},remove:{removed=$0.map(\.rowID)})
+        let c=parent.makeCoordinator();let t=NSTableView();t.allowsMultipleSelection=true;t.dataSource=c;c.table=t;t.reloadData()
+        t.selectRowIndexes(IndexSet([0,2]),byExtendingSelection:false)
+        let menu=NSMenu();c.menuNeedsUpdate(menu)
+        XCTAssertNotNil(menu.items.first {$0.title=="Remove from Library…" && $0.isEnabled})
+        c.performRows(.remove,contextMenu:true);XCTAssertEqual(removed,["e:1","e:3"])
+        var disabled=parent;disabled.editingEnabled=false;c.update(disabled);c.menuNeedsUpdate(menu)
+        XCTAssertFalse(menu.items.first {$0.title=="Remove from Library…"}?.isEnabled ?? true)
+    }
+}

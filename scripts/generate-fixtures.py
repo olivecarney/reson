@@ -14,3 +14,9 @@ for bits, rate, channels in [(16,44100,1),(24,48000,2)]:
     subprocess.run(['ffmpeg','-v','error','-y','-i',str(path),str(root/(name+'.flac'))],check=True)
 (root / 'malformed.wav').write_bytes(b'RIFF\x00\x00\x00\x00WAVEtruncated')
 subprocess.run(['ffmpeg','-v','error','-y','-i',str(root/'pcm16-44100-1.wav'),'-c:a','pcm_s16le','-metadata','title=Fixture title','-metadata','artist=Fixture artist',str(root/'tagged.wav')],check=True)
+
+subprocess.run(['ffmpeg','-v','error','-f','lavfi','-i',
+    'sine=frequency=440:sample_rate=44100:duration=1','-ac','1','-c:a','libmp3lame','-b:a','32k',
+    '-metadata','title=Synthetic MP3','-metadata','artist=Reson fixture','-metadata','album=Original signals',
+    '-metadata','genre=Electronic','-metadata','TBPM=120','-metadata','TKEY=8A',
+    '-id3v2_version','3','-y',str(root/'synthetic.mp3')],check=True)

@@ -34,7 +34,7 @@ struct ContentView: View {
                             VStack(spacing: 16) {
                                 Image(systemName: "waveform").font(.system(size: 44, weight: .ultraLight)).foregroundStyle(Color.accentColor.opacity(0.65))
                                 Text(model.libraryLoading ? "Loading library…" : (model.search.isEmpty ? "Your library is empty." : "No matching tracks.")).font(.system(size: 20, weight: .medium))
-                                Text(model.search.isEmpty ? "Import a folder of FLAC or WAV files to begin." : "Try another title, artist, album, genre or filename.").foregroundStyle(.secondary)
+                                Text(model.search.isEmpty ? "Import a folder of FLAC, WAV or MP3 files to begin." : "Try another title, artist, album, genre or filename.").foregroundStyle(.secondary)
                                 if model.search.isEmpty { Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy) }
                                 else { Button("Clear search") { model.search = "" } }
                             }.padding(16).multilineTextAlignment(.center).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -90,12 +90,12 @@ struct ContentView: View {
     private var playlistTable: some View {
         let move: (([PlaybackSnapshot],Int)->Void)? = model.selectedPlaylistID==nil ? nil : {model.moveEntries($0,to:$1)}
         let insert: (([Int64],Int)->Void)? = model.selectedPlaylistID.map { id in {model.insertTrackIDs($0,to:id,position:$1)} }
-        let remove: (([PlaybackSnapshot])->Void)? = model.selectedPlaylistID==nil ? nil : {model.removeEntries($0)}
+        let remove: (([PlaybackSnapshot])->Void)? = model.selectedPlaylistID==nil ? {model.confirmRemoveTracks($0)} : {model.removeEntries($0)}
         return TrackTable(tracks:model.tracks,selection:$model.selectedPath,play:model.playRow,sort:model.sortLibrary,artworkRevision:model.artworkRevision,
                           sourceID:model.selectedPlaylistID.map { "playlist:\($0)" } ?? "library",move:move,insert:insert,remove:remove,
                           playNext:{model.enqueue($0,next:true)},addQueue:{model.enqueue($0,next:false)},showQueue:{model.showQueue=true},
                           playlists:model.playlists,addToPlaylist:{model.addTracks($0,to:$1)},playingID:model.playingRowID,dataRevision:model.tableRevision,
-                          editingEnabled:!model.playlistBusy && !model.libraryLoading,focusRequest:model.tableFocusRequest)
+                          editingEnabled:!model.playlistBusy && !model.libraryLoading && !model.libraryManagementBusy && !model.importBusy,focusRequest:model.tableFocusRequest)
     }
     private var libraryHeading: some View {
         VStack(alignment: .leading, spacing: 5) {

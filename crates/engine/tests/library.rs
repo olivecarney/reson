@@ -52,7 +52,7 @@ fn scanner_handles_duplicates_unicode_malformed_and_missing() {
         .join("../../tests/fixtures/pcm16-44100-1.wav");
     std::fs::copy(fixture, music.join("a.wav")).unwrap();
     std::fs::write(music.join("bad.flac"), b"broken").unwrap();
-    std::fs::write(music.join("skip.mp3"), b"skip").unwrap();
+    std::fs::write(music.join("skip.aac"), b"skip").unwrap();
     let mut store = LibraryStore::open(&d.path().join("db")).unwrap();
     let cancel = std::sync::atomic::AtomicBool::new(false);
     let summary = store.scan(&music, &cancel, |_| {}).unwrap();

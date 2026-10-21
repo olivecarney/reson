@@ -16,3 +16,5 @@ for name, rate, channels, seconds, silent in [
     with wave.open(str(path), 'wb') as f:
         f.setnchannels(channels); f.setsampwidth(2); f.setframerate(rate); f.writeframes(data)
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', str(path), str(root/(name+'.flac'))], check=True)
+
+subprocess.run(['ffmpeg','-v','error','-y','-i',str(root/'silent.wav'),'-c:a','libmp3lame',str(root/'silent.mp3')],check=True)
