@@ -216,6 +216,23 @@ impl Worker {
                     json!({"tracks": self.store.query(&request.search, sort, request.descending, request.offset, limit)?, "revision": self.status.revision}),
                 )
             }
+            "sources" => {
+                Ok(json!({"folders":self.store.folders()?, "exclusions":self.store.exclusions()?}))
+            }
+            "tracks_remove" | "folder_remove" | "exclusion_restore" => {
+                if self.status.busy {
+                    return Err("Wait for the import to finish or cancel it first".into());
+                }
+                match request.op.as_str() {
+                    "tracks_remove" => self.store.remove_tracks(&request.ids)?,
+                    "folder_remove" => self
+                        .store
+                        .remove_folder(std::path::Path::new(&request.path))?,
+                    _ => self.store.restore_exclusion(&request.path)?,
+                }
+                self.status.revision += 1;
+                Ok(json!({}))
+            }
             "status" => Ok(serde_json::to_value(&self.status)?),
             "import" | "rescan" => {
                 if self.status.busy {

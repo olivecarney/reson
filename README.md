@@ -2,7 +2,7 @@
 
 <img src="macos/Resources/AppIcon.icon/Assets/AppIcon.png" width="96" alt="Reson app icon">
 
-A lightweight native macOS player for local lossless music. Rust handles playback; SwiftUI and AppKit provide the interface. No accounts, telemetry or cloud services.
+A lightweight native macOS player for local music. Rust handles playback; SwiftUI and AppKit provide the interface. No accounts, telemetry or cloud services.
 
 ## Download
 
@@ -25,11 +25,22 @@ open "/Applications/Reson.app"
 
 Use this only for a release you trust. The command targets the installed Reson bundle; it does not disable Gatekeeper globally. If you installed elsewhere, substitute that app path. For a permissions error, use Open Anyway instead.
 
+### Homebrew
+
+```sh
+brew install --cask olivecarney/tap/reson
+```
+
+The [project tap](https://github.com/olivecarney/homebrew-tap) pins a verified release DMG and checksum. Uninstall preserves personal library data. The cask does not bypass macOS security approval.
+
+The existing v0.5.2 download predates the MP3, Settings and library-management changes described below. Build from source to use these changes until a new release is published.
+
 ## Listen
 
-- Press **⌘O** to open and play a FLAC or PCM WAV file.
+- Press **⌘O** to open and play a FLAC, PCM WAV or MP3 file.
 - Press **⇧⌘O** to import a music folder into your library.
 - Double-click a track or press **Return** to play it. Use **Space** to pause or resume.
+- Open **Settings…** with **⌘,** to manage folders and restore excluded tracks. Use **Remove from Library…** in a track’s context menu to remove records while keeping music files.
 - Create playlists with **⌘N**, or use **Play Next** and **Add to Queue** from a track's context menu.
 
 Reson supports searching and sorting your library, embedded artwork, seeking, app volume and mute, output-device selection, persistent playlists, and M3U8 import/export. Your music stays in its original folders.
@@ -47,7 +58,7 @@ cd reson
 ./scripts/run.sh
 ```
 
-The app is built at `build/Reson.app`. Rebuild after source changes; `run.sh` launches the existing app and builds only if it is missing. The first build downloads Rust dependencies. After caching them, use `CARGO_NET_OFFLINE=true ./scripts/build.sh` to build offline.
+The distributable app is built at `build/Reson.app`. By default, `run.sh` launches a separately identified **Reson Development.app** using `~/Library/Application Support/Reson Development` for its database, artwork and preferences. Rebuild after source changes; the script builds only if the release app is missing. Use `./scripts/run.sh --personal` only when you intend to open the normal app with your personal library. The first build downloads Rust dependencies. After caching them, use `CARGO_NET_OFFLINE=true ./scripts/build.sh` to build offline.
 
 To create a verified DMG from the existing build, run `./scripts/package.sh`. Packaging installs pinned, hash-checked build tools into an isolated environment under `build/`; these are not part of the app.
 

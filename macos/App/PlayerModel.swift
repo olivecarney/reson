@@ -15,6 +15,9 @@ final class PlayerModel {
     var search = "" { didSet { if search != oldValue { reloadLibrary(debounce: true) } } }
     var importBusy = false
     var importSummary = ""
+    var libraryFolders: [String] = []
+    var excludedPaths: [String] = []
+    var libraryManagementBusy = false
     var libraryLoading = false
     var artworkRevision: UInt64 = 0
     var selectedPath: String?
@@ -28,8 +31,8 @@ final class PlayerModel {
     var message: String?
     var notice: String?
     private let bridge: EngineBridge
-    private let library: LibraryBridge
-    init(databaseURL: URL? = nil, settings: UserDefaults = .standard) {
+    let library: LibraryBridge
+    init(databaseURL: URL? = nil, settings: UserDefaults = RuntimeStorage.current.preferences) {
         library=LibraryBridge(databaseURL:databaseURL); self.settings=settings
         let saved=settings.object(forKey:"playbackVolume") as? Double ?? 1
         let initialVolume=saved.isFinite ? min(max(saved,0),1) : 1
@@ -189,17 +192,18 @@ final class PlayerModel {
     private var sortDescending = false
     private var libraryStarted = false
     private var savedTracks: [PlaybackSnapshot] = []
-    private var sessionTracks: [PlaybackSnapshot] = []
+    var sessionTracks: [PlaybackSnapshot] = []
+    var hiddenSessionPaths: Set<String> = []
     private var refreshTask: Task<Void, Never>?
     private var expected: UInt64 = 0
     private var requestedGeneration: UInt64 = 0
     private var requestID: UInt64 = 0
-    private var closing = false
+    private(set) var closing = false
     var selected: PlaybackSnapshot? { tracks.first { $0.rowID == selectedPath } }
     func openFile() {
         let panel = NSOpenPanel()
-        panel.title = "Open a lossless audio file"
-        panel.allowedContentTypes = [UTType(filenameExtension: "flac"), UTType.wav].compactMap { $0 }
+        panel.title = "Open an audio file"
+        panel.allowedContentTypes = [UTType(filenameExtension: "flac"), UTType.wav, UTType.mp3].compactMap { $0 }
         panel.canChooseDirectories = false
         panel.canChooseFiles = true
         panel.begin { [weak self] result in
@@ -275,7 +279,7 @@ final class PlayerModel {
                             return
                         }
                         if !snapshot.path.isEmpty, !snapshot.title.isEmpty {
-                            if !savedTracks.contains(where: { $0.path == snapshot.path }) {
+                            if !hiddenSessionPaths.contains(snapshot.path), !excludedPaths.contains(snapshot.path), !savedTracks.contains(where: { $0.path == snapshot.path }) {
                                 if let index = sessionTracks.firstIndex(where: { $0.path == snapshot.path }) { sessionTracks[index] = snapshot }
                                 else { sessionTracks.append(snapshot) }
                                 updateTracks()
@@ -292,13 +296,25 @@ final class PlayerModel {
         guard !libraryStarted, !closing else { return }
         libraryStarted = true
         Task {do {try await refreshPlaylists()} catch {if !closing {message=error.localizedDescription}}}
+        Task {await refreshSources()}
         reloadLibrary()
     }
     private func updateTracks() {
         if selectedPlaylistID != nil {tracks=savedTracks; tableRevision &+= 1; return}
         let savedPaths = Set(savedTracks.map(\.path))
-        let extra = sessionTracks.filter { !savedPaths.contains($0.path) && (search.isEmpty || [$0.title, $0.artist ?? "", $0.album ?? "", $0.path].contains { $0.localizedCaseInsensitiveContains(search) }) }
+        hiddenSessionPaths.subtract(savedPaths)
+        let excluded=Set(excludedPaths).union(hiddenSessionPaths)
+        let extra = sessionTracks.filter { !excluded.contains($0.path) && !savedPaths.contains($0.path) && (search.isEmpty || [$0.title, $0.artist ?? "", $0.album ?? "", $0.path].contains { $0.localizedCaseInsensitiveContains(search) }) }
         tracks = savedTracks + extra; tableRevision &+= 1
+    }
+    func removeLibraryRows(matching predicate: (PlaybackSnapshot) -> Bool) {
+        hiddenSessionPaths.formUnion((tracks + sessionTracks + [playback]).filter(predicate).map(\.path))
+        sessionTracks.removeAll(where:predicate)
+        // Preserve native sort/search and update only the visible library snapshot.
+        // An in-flight query or a playlist needs a fresh worker view instead.
+        if selectedPlaylistID != nil || libraryLoading {reloadLibrary();return}
+        savedTracks.removeAll(where:predicate)
+        updateTracks()
     }
     func sortLibrary(column: String, ascending: Bool) {
         guard selectedPlaylistID==nil else {return}
@@ -307,7 +323,7 @@ final class PlayerModel {
         sortColumn = code; sortDescending = !ascending
         reloadLibrary()
     }
-    private func reloadLibrary(debounce: Bool = false) {
+    func reloadLibrary(debounce: Bool = false) {
         guard !closing else { return }
         queryID += 1; let id = queryID
         libraryTask?.cancel()
@@ -356,7 +372,7 @@ final class PlayerModel {
     }
     func rescanFolders() { beginImport(path: nil) }
     private func beginImport(path: String?) {
-        guard !closing, !importBusy else { return }
+        guard !closing, !importBusy, !libraryManagementBusy else { return }
         importBusy = true; message = nil
         importTask = Task {
             defer { importBusy = false }
@@ -372,7 +388,7 @@ final class PlayerModel {
                     if !status.busy {
                         if let error = summary.error { message = error }
                         artworkRevision &+= 1
-                        reloadLibrary(); return
+                        await refreshSources(); reloadLibrary(); return
                     }
                     try? await Task.sleep(for: .milliseconds(350))
                 } while !Task.isCancelled

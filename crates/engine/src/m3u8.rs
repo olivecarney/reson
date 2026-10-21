@@ -78,11 +78,11 @@ impl LibraryStore {
             } else {
                 base.join(file)
             };
-            if !file
-                .extension()
-                .and_then(|e| e.to_str())
-                .is_some_and(|e| e.eq_ignore_ascii_case("flac") || e.eq_ignore_ascii_case("wav"))
-            {
+            if !file.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+                e.eq_ignore_ascii_case("flac")
+                    || e.eq_ignore_ascii_case("wav")
+                    || e.eq_ignore_ascii_case("mp3")
+            }) {
                 skipped += 1;
                 continue;
             }

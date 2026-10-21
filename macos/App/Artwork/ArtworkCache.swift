@@ -31,7 +31,7 @@ final class ArtworkCache: @unchecked Sendable {
     private static let maximumPixels = 32 * 1024 * 1024
 
     init(directory: URL? = nil, diskCeiling: Int64 = 256 * 1024 * 1024, diskTarget: Int64 = 192 * 1024 * 1024, opportunisticDelay: TimeInterval = 5, now: @escaping () -> Date = Date.init, extract: @escaping (URL) -> Data? = EmbeddedArtwork.read) {
-        self.directory = directory ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/Reson/Artwork", isDirectory: true)
+        self.directory = directory ?? RuntimeStorage.current.artwork
         self.extract = extract
         self.diskCeiling = max(0, diskCeiling)
         self.diskTarget = max(0, min(diskTarget, diskCeiling))

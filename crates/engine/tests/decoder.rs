@@ -110,3 +110,31 @@ fn source_adaptation_to_48k_stereo_changes_samples_as_reported() {
         assert!((actual - expected).abs() < 1e-6, "{actual} != {expected}");
     }
 }
+
+#[test]
+fn mp3_metadata_duration_decode_and_seek_use_existing_engine() {
+    use reson_engine::playback::prepared_decoder;
+    let path = fixture("synthetic.mp3");
+    let info = probe(&path).unwrap();
+    assert_eq!(info.format, "MP3");
+    assert_eq!(info.sample_rate, Some(44100));
+    assert_eq!(info.title, "Synthetic MP3");
+    assert_eq!(info.artist.as_deref(), Some("Reson fixture"));
+    assert!((info.duration_seconds.unwrap() - 1.0).abs() < 0.1);
+    assert_eq!(
+        info.bit_depth, None,
+        "Lossy MP3 has no PCM source bit depth"
+    );
+    for seconds in [0.0, 0.75, 0.1, 0.95] {
+        let samples: Vec<_> = prepared_decoder(&path, seconds)
+            .unwrap()
+            .take(2000)
+            .collect();
+        assert_eq!(samples.len(), 2000);
+        assert!(samples.iter().all(|s| s.is_finite()));
+        assert!(
+            samples.iter().any(|s| s.abs() > 0.001),
+            "No decoded signal at {seconds}"
+        );
+    }
+}

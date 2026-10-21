@@ -14,6 +14,13 @@ enum EmbeddedArtwork {
             let size = try file.seekToEnd(); try file.seek(toOffset: 0)
             let reader = Reader(file: file, size: size)
             let magic = try reader.bytes(4)
+            if magic.prefix(3) == Data("ID3".utf8) {
+                try file.seek(toOffset:0)
+                let tagReader=Reader(file:file,size:size)
+                let header=try tagReader.bytes(10)
+                guard let count=Data(header[6..<10]).synchsafe(), count <= metadataBudget else {return nil}
+                return id3(header + (try tagReader.bytes(count)))
+            }
             if magic == Data("fLaC".utf8) { return try flac(reader) }
             if magic == Data("RIFF".utf8) {
                 let end = UInt64(try reader.bytes(4).integer(little: true)) + 8

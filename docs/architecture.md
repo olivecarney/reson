@@ -34,15 +34,15 @@ A dedicated Rust worker owns playback resources and accepts a bounded command qu
 
 `LibraryStore` owns system SQLite through rusqlite, without bundled SQLite. One dedicated worker owns its connection and scans between command checks. `LibraryBridge` owns the C handle and copies paged JSON responses on a separate serial queue. UI requests use request identity and database revision to reject stale results.
 
-Schema version 2 stores imported folders, track metadata, playlists and playlist entries. Canonical paths identify tracks. Playlist entries have their own IDs so duplicates are independent; retained paths protect against stale track references. Migrations are transactional. Newer or malformed schemas are rejected rather than silently replaced.
+Schema version 3 stores imported folders, track metadata, playlists, playlist entries and path-level library exclusions. Canonical paths identify tracks. Playlist entries have their own IDs so duplicates are independent; retained paths protect against stale track references. Migrations are transactional. Newer or malformed schemas are rejected rather than silently replaced.
 
 WAL and synchronous FULL preserve completed writes across cancellation and interruption. Searches bind parameters and use a fixed sort allowlist. Responses contain at most 500 records per page; the Swift model collects pages for its table, so UI memory grows with library size. Case-insensitive matching uses SQLite's ASCII rules.
 
-The scanner recursively indexes FLAC/WAV metadata without decoding audio or loading artwork, skips symlinks, and upserts completed files independently. Cancellation is checked between files. A blocked filesystem operation or busy database can delay a command. Missing files remain in the library; automatic file watching and moved-file relinking are not implemented.
+The scanner recursively indexes FLAC/WAV/MP3 metadata without decoding audio or loading artwork, skips symlinks, and upserts completed files independently. Cancellation is checked between files. A blocked filesystem operation or busy database can delay a command. Missing files remain in the library; automatic file watching and moved-file relinking are not implemented.
 
 ## Artwork
 
-Artwork extraction is independent of Rust playback and database indexing. A bounded reader handles FLAC picture blocks and supported WAV ID3/APIC tags. It never follows external artwork links. ImageIO validates dimensions and produces thumbnails; invalid or unsupported images fall back to a placeholder.
+Artwork extraction is independent of Rust playback and database indexing. A bounded reader handles FLAC picture blocks and supported WAV/MP3 ID3/APIC tags. It never follows external artwork links. ImageIO validates dimensions and produces thumbnails; invalid or unsupported images fall back to a placeholder.
 
 `ArtworkCache` performs reads, resizing and atomic disk writes on its utility queue. Keys include source identity and modification metadata, checked again before publication. Requests use 80-pixel thumbnails for tables/transport and up to 384 pixels for the inspector. Absence markers avoid repeatedly probing files without artwork.
 
@@ -57,3 +57,5 @@ Reused cells and SwiftUI loaders cancel obsolete requests and check identity bef
 ## Distribution pipeline
 
 The single GitHub Actions workflow builds and validates on macOS, then packages a read-only drag-to-Applications DMG. A separate lightweight job publishes the artifact from the same run for new versions on `main`. It does not rebuild the app. See the [release guide](releases.md) for versioning, caches, permissions and recovery.
+
+Library removal runs transactionally on the existing Rust library worker. Folder ownership is computed from canonical path components; no prefix matching or filesystem deletion is used. Exclusions are loaded into a scan-local set once per scan. Playlist paths reconnect missing references on reimport.

@@ -40,3 +40,9 @@ The output is `build/dist/Reson-<version>-macos-arm64.dmg` and its `.sha256` fil
 The app is ad-hoc signed and is not Apple-notarized. A DMG improves installation but does not change that trust status. Gatekeeper can require explicit approval; the [first-launch instructions](../README.md#first-launch-approval) cover Open Anyway and the app-scoped `xattr` alternative for verified downloads. Developer ID signing and notarization require a maintainer-owned Apple Developer account and protected credentials. Never commit signing keys.
 
 The app targets macOS 14+, while compilation requires the macOS 26 SDK. Official Rust release toolchains avoid the development machine's Homebrew standard-library macOS 27 linkage requirement. Testing on older macOS versions is still needed before claiming compatibility across the entire range.
+
+## Homebrew cask
+
+The project-maintained [olivecarney/homebrew-tap](https://github.com/olivecarney/homebrew-tap) provides `brew install --cask olivecarney/tap/reson`. Its cask source is also kept in `packaging/homebrew/Casks/reson.rb`. It requires Apple Silicon and macOS 14+, installs `Reson.app` into Applications, and preserves personal data on uninstall. No zap or Gatekeeper-bypass hooks are included.
+
+The cask pins the existing v0.5.2 DMG, verified against both its published SHA-256 and GitHub asset digest. It predates the later source changes for MP3 and library management. After an explicitly authorized new release, update the tap and mirrored cask version/checksum together. Validate with `brew style <cask-path>` and `brew audit --cask --online olivecarney/tap/reson`, then test install/uninstall using a temporary `--appdir` without launching the production bundle.

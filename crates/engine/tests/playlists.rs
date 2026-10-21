@@ -80,7 +80,7 @@ fn migrates_real_v1_database_and_retains_missing_and_deleted_references() {
     let ids = seed(&mut s);
     drop(s);
     let c = rusqlite::Connection::open(&db).unwrap();
-    c.execute_batch("DROP TABLE playlist_entries; DROP TABLE playlists; PRAGMA user_version=1;")
+    c.execute_batch("DROP TABLE library_exclusions; DROP TABLE playlist_entries; DROP TABLE playlists; PRAGMA user_version=1;")
         .unwrap();
     drop(c);
     let mut s = LibraryStore::open(&db).unwrap();

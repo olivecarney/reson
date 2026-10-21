@@ -47,9 +47,9 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
         .and_then(|x| x.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-    if !matches!(ext.as_str(), "wav" | "flac") {
+    if !matches!(ext.as_str(), "wav" | "flac" | "mp3") {
         return Err(EngineError::InvalidInput(
-            "Choose a FLAC or PCM WAV file".into(),
+            "Choose a FLAC, PCM WAV or MP3 file".into(),
         ));
     }
     let file = File::open(path).map_err(|e| EngineError::Io(e.to_string()))?;
@@ -90,7 +90,13 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
         ..Snapshot::default()
     };
     use symphonia::core::meta::StandardTagKey;
-    if let Some(meta) = probed.format.metadata().current() {
+    let mut metadata = probed.metadata.get();
+    let format_metadata = probed.format.metadata();
+    if let Some(meta) = metadata
+        .as_mut()
+        .and_then(|m| m.current())
+        .or_else(|| format_metadata.current())
+    {
         for tag in meta.tags() {
             match tag.std_key {
                 Some(StandardTagKey::TrackTitle) => {

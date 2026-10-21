@@ -34,11 +34,11 @@ final class AudioRefinementIntegrationTests: XCTestCase {
             _=try await command(bridge,["op":"volume","value":0.35])
             _=try await command(bridge,["op":"mute","value":true])
             var latencies:[Double]=[]
-            for ext in ["wav","flac"] {
+            for ext in ["wav","flac","mp3"] {
                 _=try await command(bridge,["op":"mute","value":true])
                 let receipt=try await bridge.command(path:root+"/silent."+ext)
                 var s=try await acknowledged(bridge,receipt)
-                XCTAssertEqual(s.state,2,s.error ?? ""); XCTAssertEqual(s.rate,44100); XCTAssertEqual(s.duration,8,accuracy:0.001)
+                XCTAssertEqual(s.state,2,s.error ?? ""); XCTAssertEqual(s.rate,44100); XCTAssertEqual(s.duration,8,accuracy:ext == "mp3" ? 0.1 : 0.001)
                 XCTAssertNotNil(s.outputRate); XCTAssertNotNil(s.outputFormat)
                 s=try await acknowledged(bridge,bridge.command(action:2))
                 XCTAssertEqual(s.state,3)

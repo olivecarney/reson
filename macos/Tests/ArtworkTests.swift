@@ -13,6 +13,21 @@ final class ArtworkTests: XCTestCase {
     func write(_ bytes: Data, _ name: String = "track.flac") throws -> URL {
         let url = root.appendingPathComponent(name); try bytes.write(to: url); return url
     }
+    func testMP3APICAndNoArtworkRemainLazyAndBounded() async throws {
+        let image=Self.png()
+        // Reuse the original APIC fixture, excluding the RIFF chunk wrapper.
+        let wav=Self.wav(image)
+        let tagLength=Int(wav[16]) | (Int(wav[17]) << 8) | (Int(wav[18]) << 16) | (Int(wav[19]) << 24)
+        let original=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("tests/fixtures/synthetic.mp3")
+        let url=try write(Data(wav[20..<(20+tagLength)]) + Data(contentsOf:original),"art.mp3")
+        XCTAssertEqual(EmbeddedArtwork.read(url),image)
+        let cache=ArtworkCache(directory:root.appendingPathComponent("mp3-cache"))
+        let thumbnail=await cache.thumbnail(path:url.path);XCTAssertEqual(thumbnail?.width,80)
+        XCTAssertNil(EmbeddedArtwork.read(original))
+        let placeholder=await cache.thumbnail(path:original.path);XCTAssertNil(placeholder)
+        await cache.shutdown()
+        XCTAssertNil(EmbeddedArtwork.read(try write(Data("ID3".utf8)+Data([4,0,0,127,127,127,127]),"oversize.mp3")))
+    }
     func testFLACPictureAndNoArtwork() throws {
         let payload = Data([1, 2, 3, 4])
         XCTAssertEqual(EmbeddedArtwork.read(try write(Self.flac(payload))), payload)
