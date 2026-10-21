@@ -28,13 +28,25 @@ v0.2.1 adds lazy embedded FLAC/WAV artwork, native ImageIO thumbnails and a boun
 
 Folder imports persist in `~/Library/Application Support/Reson/library.db`. Files opened individually remain session-only. Tracks without embedded artwork use a placeholder. The sidebar contains Library and persistent playlists.
 
+## Download
+
+Get the latest app from **[GitHub Releases](https://github.com/olivecarney/reson/releases/latest)**. Download the `macos-arm64.zip`, unzip it, and drag **Reson.app** to **Applications**. Apple Silicon is required; Intel builds are not available.
+
+Releases are ad-hoc signed and not Apple notarized. If macOS blocks the app, attempt to open it, then use **System Settings → Privacy & Security → Open Anyway** for a download you trust. See each release for compatibility notes and a SHA-256 checksum.
+
+Open a FLAC/WAV with **⌘O**, or import your music folder with **⇧⌘O**. No account or developer tools are needed for the download.
+
+## Contribute
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, checks and pull requests. Bug reports, accessibility improvements, older macOS testing and focused features are welcome. Please follow the [code of conduct](CODE_OF_CONDUCT.md); report vulnerabilities through the [security policy](SECURITY.md).
+
 ## Build and run
 
 ### Requirements
 
 - An Apple Silicon Mac.
-- Xcode or Command Line Tools with Swift 5.9 or newer.
-- Rust 1.87 or newer with the `aarch64-apple-darwin` target.
+- Xcode 26 or newer with the macOS 26 SDK and Swift 6.2 or newer (required to compile the Liquid Glass UI).
+- Current stable Rust with the `aarch64-apple-darwin` target, plus Python 3 for bundled license notices.
 
 ```sh
 git clone https://github.com/olivecarney/reson.git
@@ -122,14 +134,10 @@ See [audio-path notes](docs/audio-path.md) and the [validation record](docs/vali
 ## Development checks
 
 ```sh
-cargo fmt --all -- --check
-cargo test --workspace
-cargo clippy --workspace --all-targets -- -D warnings
-./scripts/build.sh
-(cd macos && swift test)
-clang -fsyntax-only -x c macos/Bridge/include/reson.h
-plutil -lint build/Reson.app/Contents/Info.plist
+./scripts/check.sh
 ```
+
+GitHub Actions runs these checks and uploads downloadable build artifacts for pull requests and `main`. Version tags publish permanent app downloads; see [maintainer release instructions](docs/releases.md).
 
 The v0.2 validation results and reproducible benchmarks are recorded in [validation-v0.2.md](docs/validation-v0.2.md). Rust tests run without an audio output device.
 
@@ -170,6 +178,6 @@ Library benchmarks cover 270, 5,000 and 25,000 synthetic metadata records. Full 
 
 ## License
 
-A license for original Reson code has not yet been selected; MIT is proposed. Until a license is added, this repository should not be treated as MIT-licensed.
+Original Reson code is available under the [MIT license](LICENSE). Contributions are welcome under the same license.
 
 Dependencies retain their own licenses, including rodio/cpal (MIT or Apache-2.0), Symphonia (MPL-2.0) serde/serde_json (MIT or Apache-2.0), rusqlite (MIT), and system SQLite (public domain). Fixtures are original synthetic audio; no third-party music, artwork or application code is included.

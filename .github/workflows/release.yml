@@ -1,0 +1,39 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+          rustup target add aarch64-apple-darwin
+      - name: Check and build
+        run: ./scripts/check.sh
+      - name: Package versioned download
+        env:
+          RESON_RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/package.sh
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESON_RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RESON_RELEASE_TAG" build/dist/* \
+            --verify-tag --title "Reson $RESON_RELEASE_TAG" \
+            --notes-file docs/release-notes.md --generate-notes

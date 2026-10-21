@@ -14,5 +14,6 @@ cd "$reson_root"
 mkdir -p build/Reson.app/Contents/MacOS
 cp "$reson_bin/Reson" build/Reson.app/Contents/MacOS/Reson
 cp macos/Info.plist build/Reson.app/Contents/Info.plist
+python3 scripts/bundle-licenses.py
 codesign --force --sign - build/Reson.app
 printf 'Built %s/build/Reson.app\n' "$reson_root"
