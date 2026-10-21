@@ -33,7 +33,7 @@ brew install --cask olivecarney/tap/reson
 
 The [project tap](https://github.com/olivecarney/homebrew-tap) pins a verified release DMG and checksum. Uninstall preserves personal library data. The cask does not bypass macOS security approval.
 
-The existing v0.5.2 download predates the MP3, Settings and library-management changes described below. Build from source to use these changes until a new release is published.
+Version 0.5.3 includes MP3 playback, native Settings and library management.
 
 ## Listen
 

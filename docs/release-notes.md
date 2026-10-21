@@ -1,11 +1,11 @@
-## Source changes after the published v0.5.2 DMG
+## Changes in 0.5.3
 
 - Added local MP3 playback and indexing through Symphonia, with lazy ID3 APIC artwork.
 - Ignore macOS metadata sidecars during import.
 - Native Settings (⌘,) manages folders, scans and excluded-track restoration.
 - Remove selected library tracks or registered folders without deleting music; preserve playlist paths for recovery.
 - Isolate test/development databases, artwork and preferences from personal use.
-- Added a verified [Homebrew cask](https://github.com/olivecarney/homebrew-tap) for the existing release DMG. These source changes require a new release before they appear in that download.
+- Added a verified [Homebrew cask](https://github.com/olivecarney/homebrew-tap) for versioned release DMGs.
 
 ## Changes in 0.5.2
 
@@ -16,7 +16,7 @@
 
 ## Download and install
 
-Download `Reson-0.5.2-macos-arm64.dmg`, open it and drag **Reson** to **Applications**. Eject the disk image, then open Reson from Applications. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.
+Download `Reson-0.5.3-macos-arm64.dmg`, open it and drag **Reson** to **Applications**. Eject the disk image, then open Reson from Applications. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.
 
 The app is ad-hoc signed, not Apple-notarized. After attempting to open a trusted download, use **System Settings → Privacy & Security → Open Anyway** if macOS blocks it.
 
@@ -29,8 +29,8 @@ open "/Applications/Reson.app"
 
 This applies only to Reson. For a permissions error, use Open Anyway. See the [first-launch instructions](https://github.com/olivecarney/reson#first-launch-approval) for details.
 
-Use **⌘O** to play a FLAC/WAV track or **⇧⌘O** to import your music folder. Library data stays on your Mac.
+Use **⌘O** to play a FLAC/WAV/MP3 track or **⇧⌘O** to import your music folder. Library data stays on your Mac.
 
-To verify the download, place the DMG and its `.sha256` file in the same folder and run `shasum -a 256 -c Reson-0.5.2-macos-arm64.dmg.sha256` there.
+To verify the download, place the DMG and its `.sha256` file in the same folder and run `shasum -a 256 -c Reson-0.5.3-macos-arm64.dmg.sha256` there.
 
 See the README for playback limitations, controls and data locations. Lossless input does not imply bit-perfect output.

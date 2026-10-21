@@ -15,7 +15,7 @@ open "/Applications/Reson.app"
 
 This applies only to Reson. For a permissions error, use Open Anyway. See the [first-launch instructions](../README.md#first-launch-approval) for details.
 
-The MP3 and library-management features below currently require a source build; the existing v0.5.2 release DMG predates them. Homebrew installs that published DMG.
+MP3 playback, native Settings and library management are available starting in version 0.5.3.
 
 ## Add music
 
