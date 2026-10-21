@@ -10,7 +10,20 @@ A lightweight native macOS player for local lossless music. Rust handles playbac
 
 The app targets macOS 14 or newer. Compatibility across older macOS versions is still being tested; Intel Macs are not supported.
 
-The DMG includes a drag-to-Applications layout and a SHA-256 checksum. Releases are ad-hoc signed and are not Apple-notarized. If macOS blocks a trusted download, attempt to open it, then choose **System Settings → Privacy & Security → Open Anyway**.
+The DMG includes a drag-to-Applications layout and a SHA-256 checksum.
+
+### First-launch approval
+
+Reson is ad-hoc signed, but not Developer ID signed or Apple-notarized. If macOS blocks it, attempt to open it, then choose **System Settings → Privacy & Security → Open Anyway**. See [Apple's instructions](https://support.apple.com/en-gb/102445).
+
+After [verifying the release checksum](docs/release-notes.md#download-and-install) and copying Reson to Applications, you can alternatively remove the download quarantine for this app in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Reson.app"
+open "/Applications/Reson.app"
+```
+
+Use this only for a release you trust. The command targets the installed Reson bundle; it does not disable Gatekeeper globally. If you installed elsewhere, substitute that app path. For a permissions error, use Open Anyway instead.
 
 ## Listen
 

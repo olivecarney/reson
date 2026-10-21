@@ -2,7 +2,7 @@
 
 ## One build, tested once
 
-`.github/workflows/ci.yml` is the only build/release workflow. It runs on pull requests, pushes to `main`, and manual dispatch. Superseded runs for the same branch are cancelled.
+`.github/workflows/ci.yml` is the only build/release workflow. It runs on pull requests, pushes to `main`, and manual dispatch. Documentation-only Markdown changes skip the workflow; changes to app source, scripts, licenses or the workflow still run it. Superseded runs for the same branch are cancelled.
 
 1. An Apple Silicon macOS 26 job installs Rust 1.99.0 and restores cached Cargo dependencies and compiled targets.
 2. `./scripts/check.sh` runs formatting, Rust tests/Clippy, the release app build, Swift tests and bundle validation.
@@ -37,6 +37,6 @@ The output is `build/dist/Reson-<version>-macos-arm64.dmg` and its `.sha256` fil
 
 ## Signing and compatibility
 
-The app is ad-hoc signed and is not Apple-notarized. A DMG improves installation but does not change that trust status. Gatekeeper can require explicit approval as described in the README. Developer ID signing and notarization require a maintainer-owned Apple Developer account and protected credentials. Never commit signing keys.
+The app is ad-hoc signed and is not Apple-notarized. A DMG improves installation but does not change that trust status. Gatekeeper can require explicit approval; the [first-launch instructions](../README.md#first-launch-approval) cover Open Anyway and the app-scoped `xattr` alternative for verified downloads. Developer ID signing and notarization require a maintainer-owned Apple Developer account and protected credentials. Never commit signing keys.
 
 The app targets macOS 14+, while compilation requires the macOS 26 SDK. Official Rust release toolchains avoid the development machine's Homebrew standard-library macOS 27 linkage requirement. Testing on older macOS versions is still needed before claiming compatibility across the entire range.

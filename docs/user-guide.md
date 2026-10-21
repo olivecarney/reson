@@ -6,6 +6,15 @@ Download the Apple Silicon DMG from [GitHub Releases](https://github.com/oliveca
 
 If macOS blocks a trusted download, attempt to open it and use **System Settings → Privacy & Security → Open Anyway**. Releases are ad-hoc signed and are not notarized. To check a download, keep its `.sha256` file beside the DMG and run `shasum -a 256 -c <download>.dmg.sha256` in that folder.
 
+After verifying the release checksum and copying the app to Applications, Terminal users can remove quarantine for the trusted installed bundle:
+
+```sh
+xattr -dr com.apple.quarantine "/Applications/Reson.app"
+open "/Applications/Reson.app"
+```
+
+This applies only to Reson. For a permissions error, use Open Anyway. See the [first-launch instructions](../README.md#first-launch-approval) for details.
+
 ## Add music
 
 Use **File → Open File…** (**⌘O**) to play a FLAC or PCM WAV file. Files opened this way are session-only unless they are already in the library.
