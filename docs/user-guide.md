@@ -1,5 +1,11 @@
 # Using Reson
 
+## Install
+
+Download the Apple Silicon DMG from [GitHub Releases](https://github.com/olivecarney/reson/releases/latest). Open it, drag Reson to the Applications shortcut, eject the image and launch Reson from Applications. For updates, quit Reson first and replace the app in Applications; your library and preferences are stored separately.
+
+If macOS blocks a trusted download, attempt to open it and use **System Settings → Privacy & Security → Open Anyway**. Releases are ad-hoc signed and are not notarized. To check a download, keep its `.sha256` file beside the DMG and run `shasum -a 256 -c <download>.dmg.sha256` in that folder.
+
 ## Add music
 
 Use **File → Open File…** (**⌘O**) to play a FLAC or PCM WAV file. Files opened this way are session-only unless they are already in the library.

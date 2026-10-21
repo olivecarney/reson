@@ -51,6 +51,6 @@ This checks engine state with a real output and produces sound. It does not meas
 
 ## Manual review
 
-For playback changes, try FLAC/WAV, pause/resume, seeking, Stop/restart, EOF progression, missing files and device recovery. For UI changes, check keyboard navigation, focus, long metadata, compact windows and accessibility settings. For a release, inspect the packaged app's icon in Finder, confirm it opens and verify the published checksum. Record the app commit, macOS version and output hardware in your PR.
+For playback changes, try FLAC/WAV, pause/resume, seeking, Stop/restart, EOF progression, missing files and device recovery. For UI changes, check keyboard navigation, focus, long metadata, compact windows and accessibility settings. For a release, run `./scripts/package.sh`, inspect the DMG's Finder layout and icon, drag the app to an isolated test location, confirm it opens and verify the published checksum. Packaging already verifies the mounted app's signature and Applications shortcut. Check the icon on both light and dark backgrounds; the surround must be transparent. Record the app commit, macOS version and output hardware in your PR.
 
 See [performance](performance.md) for optional benchmarks.

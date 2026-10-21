@@ -1,20 +1,42 @@
 # Releases
 
-Pull requests and pushes to `main` run `.github/workflows/ci.yml` on an Apple Silicon macOS 26 runner. It checks formatting, Rust tests and Clippy, builds and signs the app, runs Swift tests and validates the bundle, then uploads a zip and SHA-256 checksum as a 14-day Actions artifact. For a durable download use GitHub Releases.
+## One build, tested once
 
-## Publish a release
+`.github/workflows/ci.yml` is the only build/release workflow. It runs on pull requests, pushes to `main`, and manual dispatch. Superseded runs for the same branch are cancelled.
 
-1. Merge and validate the intended source on `main`.
-2. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `macos/Info.plist`. The Rust engine crate has an independent version.
-3. Update `docs/release-notes.md` and the README for user-visible changes and known limitations.
-4. Run `./scripts/check.sh`, then `./scripts/package.sh`. Inspect the archive and try a local install. CI uses the official stable Rust toolchain; Homebrew toolchains may impose a newer macOS runtime requirement.
-5. Commit and push the changes, then create and push an annotated tag matching the app version, for example `git tag -a v0.5.1 -m 'Reson 0.5.0'` and `git push origin v0.5.1`.
-6. The release workflow repeats the checks and publishes the archive and checksum with installation notes and generated changes. Verify the downloadable app on a clean Mac where possible.
+1. An Apple Silicon macOS 26 job installs Rust 1.99.0 and restores cached Cargo dependencies and compiled targets.
+2. `./scripts/check.sh` runs formatting, Rust tests/Clippy, the release app build, Swift tests and bundle validation.
+3. `./scripts/package.sh` packages that app into a DMG, verifies the image, mounts it read-only and checks the app signature, icon, version, Finder layout and Applications shortcut. It writes a SHA-256 checksum.
+4. The DMG and checksum are uploaded as a 14-day Actions artifact.
+5. For `main` only, a lightweight Ubuntu job downloads those exact files from the same workflow run, verifies the checksum and publishes a new version. It does not compile or package anything.
 
-`RESON_RELEASE_TAG=v0.5.1 ./scripts/package.sh` checks tag/version agreement before packaging. A mismatch fails publication. Failed workflows publish no release; fix the failure before retrying. Do not move an already published tag; ship a new version. To withdraw a broken release, mark it as a prerelease or remove it and communicate the reason.
+Pull requests cannot publish releases. The build job has read-only repository permissions; only the trusted publishing job has permission to write a release. Pinned action revisions and hash-checked packaging dependencies keep the tooling explicit. Rust cache keys include the architecture, toolchain and dependency lockfile; packaging downloads have their own cache.
+
+## Publish a version
+
+1. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `macos/Info.plist`. Use a stable three-part version such as `0.5.2`. The Rust engine crate has an independent version.
+2. Update `docs/release-notes.md` and affected user/contributor documentation.
+3. Run `./scripts/check.sh`, then `./scripts/package.sh`. Open the DMG and check the drag-to-Applications installation and icon. The first packaging run downloads tools into `build/packaging-venv`; Python 3.10+ is required.
+4. Review and merge the change into `main`. A successful pipeline automatically creates the matching tag (for example `v0.5.2`) at the tested commit and publishes the DMG and checksum. Do not push a separate release tag or start a second build.
+5. Download the published DMG, verify its checksum and test installation on a clean Mac where possible.
+
+An already published version is left unchanged, so documentation-only pushes can retain the app version. To ship different app contents, bump the version. An existing tag pointing to a different commit fails publication rather than moving the tag. Existing drafts require maintainer review before retrying. Development versions in PRs are never published until merged.
+
+For a failed publish job, rerun that job while its build artifact is still available; it reuses the verified DMG. If the build failed or the artifact expired, rerun the whole pipeline. Manual dispatch on `main` also supports recovery. Never move a published tag or replace its downloads; fix a broken release with a new version.
+
+## Local packaging
+
+```sh
+./scripts/build.sh
+./scripts/package.sh
+```
+
+The output is `build/dist/Reson-<version>-macos-arm64.dmg` and its `.sha256` file. `scripts/dmg-settings.py` defines the icon layout and Applications shortcut without automating Finder. The packaging environment uses pinned packages and hashes from `scripts/requirements-packaging.txt`; they are build-time dependencies, not app dependencies.
+
+`RESON_RELEASE_TAG=v0.5.2 ./scripts/package.sh` optionally checks tag/version agreement before packaging. Verification failures stop before promoting the new image to `build/dist/`.
 
 ## Signing and compatibility
 
-Builds are signed ad-hoc and are not notarized. Gatekeeper may require explicit approval as described in the README. Developer ID signing and notarization require a maintainer-owned Apple Developer account and protected credentials and are future work. Never commit signing credentials.
+The app is ad-hoc signed and is not Apple-notarized. A DMG improves installation but does not change that trust status. Gatekeeper can require explicit approval as described in the README. Developer ID signing and notarization require a maintainer-owned Apple Developer account and protected credentials. Never commit signing keys.
 
-The app targets macOS 14+, but the SwiftUI source requires a macOS 26 SDK to compile. Release builds use GitHub's official Rust installation rather than the local Homebrew standard library built for macOS 27. Testing on macOS 14–26 is still needed before claiming compatibility across that range.
+The app targets macOS 14+, while compilation requires the macOS 26 SDK. Official Rust release toolchains avoid the development machine's Homebrew standard-library macOS 27 linkage requirement. Testing on older macOS versions is still needed before claiming compatibility across the entire range.

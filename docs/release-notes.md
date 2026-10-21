@@ -1,17 +1,18 @@
-## Changes in 0.5.1
+## Changes in 0.5.2
 
-- Added the Reson app icon to Finder, the Dock and app bundles.
-- Reworked documentation for users and contributors.
-- Removed obsolete development reports and dependency experiments.
+- Added a drag-to-Applications DMG installer with a checksum.
+- Removed the icon's white surround and made its outer background transparent.
+- Consolidated CI and releases into one pipeline: build/test/package once, then publish the same verified download.
+- Added Rust build caches and refreshed installation and contributor documentation.
 
 ## Download and install
 
-Download `Reson-<version>-macos-arm64.zip`, unzip it and drag **Reson.app** to **Applications**. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.
+Download `Reson-<version>-macos-arm64.dmg`, open it and drag **Reson** to **Applications**. Eject the disk image, then open Reson from Applications. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.
 
-This early release is ad-hoc signed, not Apple notarized. After attempting to open it, use **System Settings → Privacy & Security → Open Anyway** if macOS blocks it. Only approve a download you trust. No Developer ID certificate is included.
+The app is ad-hoc signed, not Apple-notarized. After attempting to open a trusted download, use **System Settings → Privacy & Security → Open Anyway** if macOS blocks it.
 
 Use **⌘O** to play a FLAC/WAV track or **⇧⌘O** to import your music folder. Library data stays on your Mac.
 
-A `.sha256` file accompanies the archive. In the download directory run `shasum -a 256 -c Reson-<version>-macos-arm64.zip.sha256` to verify it.
+To verify the download, place the DMG and its `.sha256` file in the same folder and run `shasum -a 256 -c Reson-<version>-macos-arm64.dmg.sha256` there.
 
 See the README for playback limitations, controls and data locations. Lossless input does not imply bit-perfect output.

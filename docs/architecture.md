@@ -52,4 +52,8 @@ Reused cells and SwiftUI loaders cancel obsolete requests and check identity bef
 
 ## App icon and bundle
 
-`macos/Resources/AppIcon.png` is the original artwork. `scripts/build-icon.sh` generates standard 16–1024 pixel representations and writes `AppIcon.icns` into the app's Resources directory. `CFBundleIconFile` in `macos/Info.plist` registers it with macOS. The build includes dependency license notices and signs the completed bundle after all resources are added. Generated icon files stay under ignored `build/`.
+`macos/Resources/AppIcon.icon/Assets/AppIcon.png` is the transparent app artwork. Pixels outside the dark tile must stay transparent to avoid a white border. `scripts/build-icon.sh` generates standard 16–1024 pixel representations and writes `AppIcon.icns` into the app's Resources directory. `CFBundleIconFile` in `macos/Info.plist` registers it with macOS. `AppIcon.icon/icon.json` defines the native macOS 26+ icon composition; `actool` compiles it to `Assets.car`, selected by `CFBundleIconName`. This avoids the pale compatibility frame applied to legacy icons. The `.icns` remains available on older macOS releases. The build includes dependency license notices and signs the completed bundle after all resources are added. Generated icon files stay under ignored `build/`.
+
+## Distribution pipeline
+
+The single GitHub Actions workflow builds and validates on macOS, then packages a read-only drag-to-Applications DMG. A separate lightweight job publishes the artifact from the same run for new versions on `main`. It does not rebuild the app. See the [release guide](releases.md) for versioning, caches, permissions and recovery.

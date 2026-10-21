@@ -1,16 +1,16 @@
 # Reson
 
-<img src="macos/Resources/AppIcon.png" width="96" alt="Reson app icon">
+<img src="macos/Resources/AppIcon.icon/Assets/AppIcon.png" width="96" alt="Reson app icon">
 
 A lightweight native macOS player for local lossless music. Rust handles playback; SwiftUI and AppKit provide the interface. No accounts, telemetry or cloud services.
 
 ## Download
 
-**[Download the latest release](https://github.com/olivecarney/reson/releases/latest)** for Apple Silicon. Unzip the `macos-arm64.zip` and drag **Reson.app** to **Applications**.
+**[Download the latest release](https://github.com/olivecarney/reson/releases/latest)** for Apple Silicon. Open the `macos-arm64.dmg`, drag **Reson** to **Applications**, then eject the disk image and open Reson from Applications.
 
 The app targets macOS 14 or newer. Compatibility across older macOS versions is still being tested; Intel Macs are not supported.
 
-Releases are ad-hoc signed and are not Apple-notarized. If macOS blocks a trusted download, attempt to open it, then choose **System Settings → Privacy & Security → Open Anyway**. Each release includes a SHA-256 checksum.
+The DMG includes a drag-to-Applications layout and a SHA-256 checksum. Releases are ad-hoc signed and are not Apple-notarized. If macOS blocks a trusted download, attempt to open it, then choose **System Settings → Privacy & Security → Open Anyway**.
 
 ## Listen
 
@@ -25,7 +25,7 @@ See the [user guide](docs/user-guide.md) for controls, library storage and troub
 
 ## Build from source
 
-You need an Apple Silicon Mac, Xcode 26 or newer with the macOS 26 SDK and Swift 6.2+, current stable Rust with the `aarch64-apple-darwin` target, and Python 3.
+You need an Apple Silicon Mac, Xcode 26 or newer with the macOS 26 SDK and Swift 6.2+, current stable Rust with the `aarch64-apple-darwin` target, and Python 3.10+. CI uses Rust 1.99.0.
 
 ```sh
 git clone https://github.com/olivecarney/reson.git
@@ -35,6 +35,8 @@ cd reson
 ```
 
 The app is built at `build/Reson.app`. Rebuild after source changes; `run.sh` launches the existing app and builds only if it is missing. The first build downloads Rust dependencies. After caching them, use `CARGO_NET_OFFLINE=true ./scripts/build.sh` to build offline.
+
+To create a verified DMG from the existing build, run `./scripts/package.sh`. Packaging installs pinned, hash-checked build tools into an isolated environment under `build/`; these are not part of the app.
 
 ## Contribute
 
