@@ -12,9 +12,6 @@ macos/.swiftpm/
 *.xcuserstate
 *.xcscmblueprint
 
-# Local agent scratch state.
-.superpowers/
-
 # macOS filesystem metadata.
 .DS_Store
 .AppleDouble

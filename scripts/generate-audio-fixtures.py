@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Original v0.4 signals under an explicitly provided development directory."""
+"""Synthetic playback and transition signals under an explicitly provided development directory."""
 import pathlib, subprocess, sys, wave
 root = pathlib.Path(sys.argv[1]).resolve()
 root.mkdir(parents=True, exist_ok=True)

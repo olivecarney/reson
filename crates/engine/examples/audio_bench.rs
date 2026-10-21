@@ -1,4 +1,4 @@
-//! Opt-in real CoreAudio benchmark; only use generate-v0.4-fixtures.py's silent sources.
+//! Opt-in real CoreAudio benchmark; only use generate-audio-fixtures.py's silent sources.
 use reson_engine::{
     playback::{output_devices, prepared_decoder, Engine},
     state::{Command, PlaybackState, Snapshot},

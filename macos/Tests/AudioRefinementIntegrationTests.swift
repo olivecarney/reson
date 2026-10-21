@@ -27,7 +27,7 @@ final class AudioRefinementIntegrationTests: XCTestCase {
         }
     }
     func testNativeSeekingGainDeviceSwitchAndUnavailableRecovery() async throws {
-        guard let root=ProcessInfo.processInfo.environment["RESON_AUDIO_FIXTURES"] else {throw XCTSkip("Opt-in: generate-v0.4-fixtures.py and set RESON_AUDIO_FIXTURES; opens real CoreAudio with silent audio")}
+        guard let root=ProcessInfo.processInfo.environment["RESON_AUDIO_FIXTURES"] else {throw XCTSkip("Opt-in: generate-audio-fixtures.py and set RESON_AUDIO_FIXTURES; opens real CoreAudio with silent audio")}
         let systemVolumeBefore=defaultVolumes()
         let bridge=EngineBridge()
         do {

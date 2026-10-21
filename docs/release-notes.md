@@ -1,3 +1,9 @@
+## Changes in 0.5.1
+
+- Added the Reson app icon to Finder, the Dock and app bundles.
+- Reworked documentation for users and contributors.
+- Removed obsolete development reports and dependency experiments.
+
 ## Download and install
 
 Download `Reson-<version>-macos-arm64.zip`, unzip it and drag **Reson.app** to **Applications**. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.

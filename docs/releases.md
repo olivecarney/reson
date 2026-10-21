@@ -8,10 +8,10 @@ Pull requests and pushes to `main` run `.github/workflows/ci.yml` on an Apple Si
 2. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `macos/Info.plist`. The Rust engine crate has an independent version.
 3. Update `docs/release-notes.md` and the README for user-visible changes and known limitations.
 4. Run `./scripts/check.sh`, then `./scripts/package.sh`. Inspect the archive and try a local install. CI uses the official stable Rust toolchain; Homebrew toolchains may impose a newer macOS runtime requirement.
-5. Commit and push the changes, then create and push an annotated tag matching the app version, for example `git tag -a v0.5.0 -m 'Reson 0.5.0'` and `git push origin v0.5.0`.
+5. Commit and push the changes, then create and push an annotated tag matching the app version, for example `git tag -a v0.5.1 -m 'Reson 0.5.0'` and `git push origin v0.5.1`.
 6. The release workflow repeats the checks and publishes the archive and checksum with installation notes and generated changes. Verify the downloadable app on a clean Mac where possible.
 
-`RESON_RELEASE_TAG=v0.5.0 ./scripts/package.sh` checks tag/version agreement before packaging. A mismatch fails publication. Failed workflows publish no release; fix the failure before retrying. Do not move an already published tag; ship a new version. To withdraw a broken release, mark it as a prerelease or remove it and communicate the reason.
+`RESON_RELEASE_TAG=v0.5.1 ./scripts/package.sh` checks tag/version agreement before packaging. A mismatch fails publication. Failed workflows publish no release; fix the failure before retrying. Do not move an already published tag; ship a new version. To withdraw a broken release, mark it as a prerelease or remove it and communicate the reason.
 
 ## Signing and compatibility
 
