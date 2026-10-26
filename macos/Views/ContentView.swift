@@ -66,7 +66,10 @@ struct ContentView: View {
             TransportView(model: model)
         }
         .onChange(of: model.searchFocusRequest) { _, _ in searchFocused = true }
-        .sheet(isPresented:$model.showQueue) {QueueView(model:model)}
+        .sheet(isPresented:$model.showQueue) {
+            QueueView(model:model)
+                .background { BackgroundDismissal { model.showQueue = false } }
+        }
         .toolbar {
             ToolbarItem(placement: .navigation) {
                 Button { model.showSidebar.toggle() } label: { Image(systemName: "sidebar.left") }

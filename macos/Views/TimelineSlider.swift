@@ -6,8 +6,13 @@ final class ScrubSlider: NSSlider {
     var finish: (() -> Void)?
     private(set) var dragging = false
     override var acceptsFirstResponder: Bool { isEnabled }
+    override func becomeFirstResponder() -> Bool {
+        focusRingType = .default
+        return super.becomeFirstResponder()
+    }
     override func keyDown(with event: NSEvent) {
         guard isEnabled else { return }
+        focusRingType = .default
         switch event.keyCode {
         case 123, 125: doubleValue=max(minValue,doubleValue-5)
         case 124, 126: doubleValue=min(maxValue,doubleValue+5)
@@ -18,7 +23,11 @@ final class ScrubSlider: NSSlider {
         if let action {sendAction(action,to:target)}
     }
     override func mouseDown(with event: NSEvent) {
+        guard isEnabled else { return }
         window?.makeFirstResponder(self)
+        // AppKit can cache the focus mask at the old thumb position while tracking.
+        // Mouse scrubbing needs no keyboard focus ring; keyboard navigation restores it.
+        focusRingType = .none
         dragging = true; begin?()
         super.mouseDown(with: event)
         dragging = false; finish?()

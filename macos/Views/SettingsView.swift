@@ -3,6 +3,7 @@ import AppKit
 
 struct SettingsView: View {
     @Bindable var model: PlayerModel
+    @Environment(\.dismiss) private var dismiss
     @State private var folder: String?
     @State private var excluded: String?
     private var busy: Bool {model.importBusy || model.libraryManagementBusy}
@@ -48,6 +49,7 @@ struct SettingsView: View {
                 if let error=model.message {Text(error).foregroundStyle(.red).font(.callout).textSelection(.enabled)}
             }.padding(20).tabItem {Label("Library",systemImage:"music.note.list")}
         }.frame(width:640,height:480)
+        .background { BackgroundDismissal { dismiss() } }
         .task {model.startLibrary();await model.refreshSources()}
     }
 }
