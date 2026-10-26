@@ -6,17 +6,17 @@ import shutil
 import subprocess
 
 root = Path(__file__).resolve().parent.parent
-resources = root / 'build/Reson.app/Contents/Resources'
+resources = root / 'build/reson.app/Contents/Resources'
 notices = resources / 'Licenses'
 if notices.exists():
     shutil.rmtree(notices)
 notices.mkdir(parents=True)
-shutil.copyfile(root / 'LICENSE', notices / 'Reson-LICENSE.txt')
+shutil.copyfile(root / 'LICENSE', notices / 'reson-LICENSE.txt')
 metadata = json.loads(subprocess.check_output(
     ['cargo', 'metadata', '--locked', '--format-version=1',
      '--filter-platform', 'aarch64-apple-darwin'], cwd=root))
-lines = ['Reson dependency notices', '',
-         'Original Reson source: https://github.com/olivecarney/reson',
+lines = ['reson dependency notices', '',
+         'Original reson source: https://github.com/olivecarney/reson',
          'Dependencies retain their own licenses. Source for each version is linked below.',
          'Symphonia is distributed under MPL-2.0; its unmodified source is available at the links below.',
          'The Rust standard library is MIT OR Apache-2.0: https://github.com/rust-lang/rust/tree/'

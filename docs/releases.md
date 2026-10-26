@@ -14,10 +14,10 @@ Pull requests cannot publish releases. The build job has read-only repository pe
 
 ## Publish a version
 
-1. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `macos/Info.plist`. Use a stable three-part version such as `0.5.2`. The Rust engine crate has an independent version.
+1. Update `CFBundleShortVersionString` and increment `CFBundleVersion` in `macos/Info.plist`. Use a stable three-part version such as `0.5.4`. The Rust engine crate has an independent version.
 2. Update `docs/release-notes.md` and affected user/contributor documentation.
 3. Run `./scripts/check.sh`, then `./scripts/package.sh`. Open the DMG and check the drag-to-Applications installation and icon. The first packaging run downloads tools into `build/packaging-venv`; Python 3.10+ is required.
-4. Review and merge the change into `main`. A successful pipeline automatically creates the matching tag (for example `v0.5.2`) at the tested commit and publishes the DMG and checksum. Do not push a separate release tag or start a second build.
+4. Review and merge the change into `main`. A successful pipeline automatically creates the matching tag (for example `v0.5.4`) at the tested commit and publishes the DMG and checksum. Do not push a separate release tag or start a second build.
 5. Download the published DMG, verify its checksum and test installation on a clean Mac where possible.
 
 An already published version is left unchanged, so documentation-only pushes can retain the app version. To ship different app contents, bump the version. An existing tag pointing to a different commit fails publication rather than moving the tag. Existing drafts require maintainer review before retrying. Development versions in PRs are never published until merged.
@@ -31,9 +31,9 @@ For a failed publish job, rerun that job while its build artifact is still avail
 ./scripts/package.sh
 ```
 
-The output is `build/dist/Reson-<version>-macos-arm64.dmg` and its `.sha256` file. `scripts/dmg-settings.py` defines the icon layout and Applications shortcut without automating Finder. `scripts/dmg-background.swift` renders the neutral installer background and instruction text with native typography. The packaging environment uses pinned packages and hashes from `scripts/requirements-packaging.txt`; they are build-time dependencies, not app dependencies.
+The output is `build/dist/reson-<version>-macos-arm64.dmg` and its `.sha256` file. `scripts/dmg-settings.py` defines the icon layout and Applications shortcut without automating Finder. `scripts/dmg-background.swift` renders the neutral installer background and instruction text with native typography. The packaging environment uses pinned packages and hashes from `scripts/requirements-packaging.txt`; they are build-time dependencies, not app dependencies.
 
-`RESON_RELEASE_TAG=v0.5.2 ./scripts/package.sh` optionally checks tag/version agreement before packaging. Verification failures stop before promoting the new image to `build/dist/`.
+`RESON_RELEASE_TAG=v0.5.4 ./scripts/package.sh` optionally checks tag/version agreement before packaging. Verification failures stop before promoting the new image to `build/dist/`.
 
 ## Signing and compatibility
 
@@ -43,6 +43,10 @@ The app targets macOS 14+, while compilation requires the macOS 26 SDK. Official
 
 ## Homebrew cask
 
-The project-maintained [olivecarney/homebrew-tap](https://github.com/olivecarney/homebrew-tap) provides `brew install --cask olivecarney/tap/reson`. Its cask source is also kept in `packaging/homebrew/Casks/reson.rb`. It requires Apple Silicon and macOS 14+, installs `Reson.app` into Applications, and preserves personal data on uninstall. No zap or Gatekeeper-bypass hooks are included.
+The project-maintained [olivecarney/homebrew-tap](https://github.com/olivecarney/homebrew-tap) provides `brew install --cask olivecarney/tap/reson`. Its cask source is also kept in `packaging/homebrew/Casks/reson.rb`. It requires Apple Silicon and macOS 14+, installs `reson.app` into Applications, and preserves personal data on uninstall. No zap or Gatekeeper-bypass hooks are included.
 
 The cask pins a versioned release DMG, verified against both its published SHA-256 and GitHub asset digest. After each new release, update the tap and mirrored cask version/checksum together. Validate with `brew style <cask-path>` and `brew audit --cask --online olivecarney/tap/reson`, then test install/uninstall using a temporary `--appdir` without launching the production bundle.
+
+## Lowercase app naming
+
+Version 0.5.4 uses `reson.app`, the `reson` executable, and `reson-<version>-macos-arm64.dmg`. Bundle identifiers and existing application-support/cache paths remain unchanged so upgrades retain library and preference data. When updating the Homebrew cask to this release, use the lowercase asset URL and `app "reson.app"`; older release URLs retain their original case.

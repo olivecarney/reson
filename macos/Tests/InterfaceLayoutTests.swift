@@ -53,11 +53,17 @@ final class InterfaceLayoutTests: XCTestCase {
         XCTAssertGreaterThan(timeline.bounds.width, 100)
         save(host, name: "accessibility-empty-compact")
         let queue = NSHostingView(rootView: QueueView(model: model))
-        queue.frame = NSRect(x: 0, y: 0, width: 680, height: 360); queue.layoutSubtreeIfNeeded()
-        let table = try XCTUnwrap(descendants(queue).compactMap { $0 as? TrackListView }.first)
-        XCTAssertEqual(table.numberOfRows, 0)
-        XCTAssertEqual(table.accessibilityLabel(), "Pending queue")
+        queue.frame = NSRect(x: 0, y: 0, width: 720, height: 440); queue.layoutSubtreeIfNeeded()
+        XCTAssertTrue(descendants(queue).compactMap { $0 as? TrackListView }.isEmpty,
+                      "The empty queue should show guidance without table headers")
         save(queue, name: "empty-queue")
+        var pending = PlaybackSnapshot(); pending.path = "/queued.wav"; pending.title = "Queued track"
+        model.enqueue([pending], next: false)
+        queue.layoutSubtreeIfNeeded()
+        let table = try XCTUnwrap(descendants(queue).compactMap { $0 as? TrackListView }.first)
+        XCTAssertEqual(table.numberOfRows, 1)
+        XCTAssertEqual(table.accessibilityLabel(), "Pending queue")
+        save(queue, name: "populated-queue")
         await model.shutdown()
     }
     private func descendants(_ view:NSView)->[NSView] {view.subviews.flatMap {[$0]+descendants($0)}}

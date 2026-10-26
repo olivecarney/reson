@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleName</key><string>Reson</string>
-<key>CFBundleDisplayName</key><string>Reson</string>
+<key>CFBundleName</key><string>reson</string>
+<key>CFBundleDisplayName</key><string>reson</string>
 <key>CFBundleIdentifier</key><string>dev.reson.player</string>
-<key>CFBundleExecutable</key><string>Reson</string>
+<key>CFBundleExecutable</key><string>reson</string>
 <key>CFBundleIconName</key><string>AppIcon</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>0.5.3</string>
-<key>CFBundleVersion</key><string>10</string>
+<key>CFBundleShortVersionString</key><string>0.5.4</string>
+<key>CFBundleVersion</key><string>11</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>CFBundleDocumentTypes</key><array><dict><key>CFBundleTypeName</key><string>Audio</string><key>CFBundleTypeRole</key><string>Viewer</string><key>LSHandlerRank</key><string>Alternate</string><key>CFBundleTypeExtensions</key><array><string>flac</string><string>wav</string><string>mp3</string></array></dict></array>

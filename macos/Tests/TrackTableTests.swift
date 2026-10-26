@@ -21,7 +21,7 @@ final class TrackTableTests: XCTestCase {
         tracks[0].album = "First album"; tracks[1].format = "WAV"; tracks[1].duration = -1
         let parent = TrackTable(tracks: tracks, selection: .constant(nil), play: { _ in })
         let coordinator = parent.makeCoordinator(); let table = ReuseTable()
-        for id in ["title", "artist", "album", "format", "duration", "bpm", "key"] {
+        for id in ["title", "artist", "album", "format", "duration"] {
             table.recycled = nil
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             let first = coordinator.tableView(table, viewFor: column, row: 0) as! NSTableCellView
@@ -32,10 +32,10 @@ final class TrackTableTests: XCTestCase {
             XCTAssertTrue(first === second, "\(id) did not reuse its cell")
             XCTAssertEqual(second.identifier, column.identifier)
             XCTAssertEqual(second.constraints.count, count)
-            let expected = ["title": "Second", "artist": "—", "album": "—", "format": "WAV", "duration": "—", "bpm": "—", "key": "—"]
+            let expected = ["title": "Second", "artist": "—", "album": "—", "format": "WAV", "duration": "—"]
             XCTAssertEqual(second.textField?.stringValue, expected[id])
             XCTAssertEqual(second.textField?.textColor, id == "title" ? .labelColor : .secondaryLabelColor)
-            XCTAssertEqual(second.textField?.font, ["duration", "bpm"].contains(id) ? .monospacedDigitSystemFont(ofSize: 13, weight: .regular) : .systemFont(ofSize: 13, weight: .regular))
+            XCTAssertEqual(second.textField?.font, (id == "duration") ? .monospacedDigitSystemFont(ofSize: 14, weight: .regular) : .systemFont(ofSize: 14, weight: .regular))
         }
     }
     func testArtworkReuseResetsImageAndTint() {

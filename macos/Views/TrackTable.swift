@@ -31,10 +31,11 @@ struct TrackTable: NSViewRepresentable {
         table.autosaveTableColumns = true
         table.backgroundColor = .clear; table.usesAlternatingRowBackgroundColors = false
         table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("bpm","BPM",48),("key","Key",48),("format","Format",65),("duration","Time",84)] {
+        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("format","Format",65),("duration","Time",84)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             if id == "duration" {column.headerCell = TimeColumnHeaderCell(textCell:title)}
-            column.title = title; column.headerCell.alignment = ["bpm", "duration"].contains(id) ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : (id == "duration" ? 72 : 40)))
+            column.headerCell.font = InterfaceStyle.tableHeaderFont
+            column.title = title; column.headerCell.alignment = (id == "duration") ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : (id == "duration" ? 72 : 40)))
             if id == "art" { column.maxWidth = 36; column.resizingMask = [] }
             if id != "art", sourceID=="library" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
@@ -145,11 +146,11 @@ struct TrackTable: NSViewRepresentable {
                 cell.textField = label
             }
             let label = cell.textField!
-            switch id { case "title": label.stringValue = (track.rowID==parent.playingID ? "▶ " : "") + track.displayTitle + (track.missing ? " · Missing" : ""); case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "bpm": label.stringValue = track.bpm.map { String(format: "%g", $0) } ?? "—"; case "key": label.stringValue = track.key ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
-            label.font = ["bpm", "duration"].contains(id) ? .monospacedDigitSystemFont(ofSize: 13, weight: .regular) : InterfaceStyle.tableFont
+            switch id { case "title": label.stringValue = (track.rowID==parent.playingID ? "▶ " : "") + track.displayTitle + (track.missing ? " · Missing" : ""); case "artist": label.stringValue = track.artist ?? "—"; case "album": label.stringValue = track.album ?? "—"; case "format": label.stringValue = track.format; case "duration": label.stringValue = timeLabel(track.duration); default: label.stringValue = "—" }
+            label.font = (id == "duration") ? InterfaceStyle.timeFont : InterfaceStyle.tableFont
             cell.normalTextColor = track.missing ? .secondaryLabelColor : (id == "title" ? .labelColor : .secondaryLabelColor)
             cell.updateTextColor()
-            label.alignment = ["bpm", "duration"].contains(id) ? .right : .left
+            label.alignment = (id == "duration") ? .right : .left
             cell.toolTip = label.stringValue
             label.setAccessibilityLabel((tableColumn?.title.isEmpty == false ? tableColumn!.title : id.capitalized) + ": " + label.stringValue)
             label.lineBreakMode = .byTruncatingTail
@@ -255,7 +256,7 @@ func timeLabel(_ seconds: Double) -> String {
 // Compare only values actually displayed by the table, not transport or inspector state.
 private extension PlaybackSnapshot {
     var tableContent: [String] {
-        [displayTitle, artist ?? "—", album ?? "—", format, timeLabel(duration), bpm.map { String(format: "%g", $0) } ?? "—", key ?? "—", String(missing)]
+        [displayTitle, artist ?? "—", album ?? "—", format, timeLabel(duration), String(missing)]
     }
 }
 

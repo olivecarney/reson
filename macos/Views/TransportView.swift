@@ -22,8 +22,8 @@ struct TransportView: View {
         HStack(spacing: 10) {
             ArtworkView(path:model.playback.path, revision:model.artworkRevision).frame(width:36,height:36)
             VStack(alignment:.leading,spacing:3) {
-                Text(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle).font(.system(size:13,weight:.medium)).lineLimit(1).help(model.playback.path.isEmpty ? "Nothing playing" : model.playback.displayTitle)
-                Text(model.playback.artist ?? model.playback.stateLabel).font(.system(size:12)).foregroundStyle(.secondary).lineLimit(1)
+                Text(model.playback.path.isEmpty ? "Ready to play" : model.playback.displayTitle).font(InterfaceStyle.body.weight(.medium)).lineLimit(1).help(model.playback.path.isEmpty ? "Ready to play" : model.playback.displayTitle)
+                Text(model.playback.path.isEmpty ? (model.canTogglePlayback ? "Play a selection or double-click a track" : "Open a file or import a music folder") : (model.playback.artist ?? model.playback.stateLabel)).font(.system(size:12)).foregroundStyle(.secondary).lineLimit(1)
             }.frame(minWidth:100,maxWidth:.infinity,alignment:.leading)
             if model.playback.state == 1 {ProgressView().controlSize(.small).accessibilityLabel("Loading audio")}
         }
@@ -31,7 +31,7 @@ struct TransportView: View {
     private var playbackControls: some View {
         HStack(spacing: 4) {
             transportButton("backward.end.fill", "Previous Track", "Previous Track (⌥⌘P)", enabled:model.canPrevious, action:model.previousTrack)
-            transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play", "Play / Pause (Space)", enabled:!model.playback.path.isEmpty && model.playback.state != 1, action:model.togglePlayback)
+            transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play", "Play / Pause (Space)", enabled:model.canTogglePlayback, action:model.togglePlayback)
                 .font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 34)
             transportButton("stop.fill", "Stop", "Stop playback", enabled:!model.playback.path.isEmpty, action:model.stop)
             transportButton("forward.end.fill", "Next Track", "Next Track (⌥⌘N)", enabled:model.canNext, action:model.nextTrack)

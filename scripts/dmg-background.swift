@@ -13,7 +13,7 @@ let image = NSImage(size: size, flipped: true) { bounds in
                                 withAttributes: [.font: font, .foregroundColor: color,
                                                  .paragraphStyle: paragraph])
     }
-    text("Install Reson", y: 30, font: .systemFont(ofSize: 24, weight: .semibold),
+    text("Install reson", y: 30, font: .systemFont(ofSize: 24, weight: .semibold),
          color: NSColor(calibratedWhite: 0.13, alpha: 1))
     text("Drag the app to Applications", y: 66, font: .systemFont(ofSize: 14),
          color: NSColor(calibratedWhite: 0.43, alpha: 1))
@@ -30,7 +30,7 @@ let image = NSImage(size: size, flipped: true) { bounds in
     NSColor(calibratedWhite: 0.58, alpha: 1).setStroke()
     arrow.stroke()
 
-    text("Eject this disk, then open Reson from Applications.", y: 324,
+    text("Eject this disk, then open reson from Applications.", y: 324,
          font: .systemFont(ofSize: 12), color: NSColor(calibratedWhite: 0.40, alpha: 1))
     return true
 }

@@ -1,6 +1,6 @@
 # Community code of conduct
 
-We want Reson to be welcoming to people of every background and experience level. Be considerate, respect differing perspectives, and give constructive feedback about the work. Assume good intent and accept corrections gracefully.
+We want reson to be welcoming to people of every background and experience level. Be considerate, respect differing perspectives, and give constructive feedback about the work. Assume good intent and accept corrections gracefully.
 
 Harassment, discriminatory language, threats, unwanted sexual attention, doxxing and personal attacks are not acceptable in project spaces. Do not post anyone's private information without permission.
 

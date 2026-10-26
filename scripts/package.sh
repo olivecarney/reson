@@ -2,7 +2,7 @@
 # Package and verify an already built app without modifying its signature.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-reson_app="build/Reson.app"
+reson_app="build/reson.app"
 reson_version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$reson_app/Contents/Info.plist")
 if [[ -n "${RESON_RELEASE_TAG:-}" && "$RESON_RELEASE_TAG" != "v$reson_version" ]]; then
     printf 'Release tag %s does not match app version v%s\n' "$RESON_RELEASE_TAG" "$reson_version" >&2
@@ -23,20 +23,20 @@ reson_cleanup() {
     rm -rf "$reson_work"
 }
 trap reson_cleanup EXIT
-reson_image="Reson-$reson_version-macos-arm64.dmg"
+reson_image="reson-$reson_version-macos-arm64.dmg"
 swift scripts/dmg-background.swift "$reson_work/background.png"
 "$reson_venv/bin/dmgbuild" -s scripts/dmg-settings.py -D "app=$reson_app" -D "background=$reson_work/background.png" \
-    "Reson $reson_version" "$reson_work/$reson_image"
+    "reson $reson_version" "$reson_work/$reson_image"
 hdiutil verify "$reson_work/$reson_image" >/dev/null
 hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$reson_mount" \
     "$reson_work/$reson_image" >/dev/null
 reson_attached=true
-codesign --verify --deep --strict "$reson_mount/Reson.app"
+codesign --verify --deep --strict "$reson_mount/reson.app"
 test "$(readlink "$reson_mount/Applications")" = /Applications
 test -s "$reson_mount/.DS_Store"
-test -s "$reson_mount/Reson.app/Contents/Resources/AppIcon.icns"
-test -s "$reson_mount/Reson.app/Contents/Resources/Assets.car"
-test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$reson_mount/Reson.app/Contents/Info.plist")" = "$reson_version"
+test -s "$reson_mount/reson.app/Contents/Resources/AppIcon.icns"
+test -s "$reson_mount/reson.app/Contents/Resources/Assets.car"
+test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$reson_mount/reson.app/Contents/Info.plist")" = "$reson_version"
 hdiutil detach "$reson_mount" >/dev/null
 reson_attached=false
 mkdir -p build/dist

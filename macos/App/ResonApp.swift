@@ -19,7 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static func handlesPlaybackSpace(_ event: NSEvent, responder: NSResponder?) -> Bool {
         guard event.keyCode == 49, event.modifierFlags.intersection([.command,.control,.option,.shift]).isEmpty else {return false}
         if responder is NSTextView {return false}
-        if responder is NSTableView {return true}
+        // Space remains a playback shortcut after seeking or adjusting volume.
+        if responder is NSTableView || responder is NSSlider {return true}
         return !(responder is NSControl)
     }
     func application(_ application: NSApplication, open urls: [URL]) { if let path = urls.first?.path { model?.load(path) } }
@@ -59,7 +60,7 @@ struct ResonApp: App {
                 Button("Export M3U8…") {model.exportM3U8()}.keyboardShortcut("e",modifiers:[.command,.shift]).disabled(model.selectedPlaylistID==nil || model.playlistBusy)
             }
             CommandMenu("Playback") {
-                Button(model.playback.state == 2 ? "Pause" : "Play") { model.togglePlayback() }.disabled(model.playback.path.isEmpty)
+                Button(model.playback.state == 2 ? "Pause" : "Play") { model.togglePlayback() }.disabled(!model.canTogglePlayback)
                 Button("Stop") { model.stop() }.disabled(model.playback.path.isEmpty)
                 Button("Next Track") {model.nextTrack()}.keyboardShortcut("n",modifiers:[.command,.option]).disabled(!model.canNext)
                 Button("Previous Track") {model.previousTrack()}.keyboardShortcut("p",modifiers:[.command,.option]).disabled(!model.canPrevious)

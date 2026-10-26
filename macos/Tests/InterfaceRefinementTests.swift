@@ -38,16 +38,17 @@ import SwiftUI
         XCTAssertNil(selected)
     }
     func testNumericAlignmentAndFullTextHelp() {
-        var a=PlaybackSnapshot();a.path="a";a.title=String(repeating:"Long title ",count:20);a.bpm=128
+        var a=PlaybackSnapshot();a.path="a";a.title=String(repeating:"Long title ",count:20);a.duration=128
         let parent=TrackTable(tracks:[a],selection:.constant(nil),play:{_ in})
         let c=parent.makeCoordinator();let table=NSTableView()
-        let bpm=c.tableView(table,viewFor:NSTableColumn(identifier:.init("bpm")),row:0) as! NSTableCellView
-        XCTAssertEqual(bpm.textField?.alignment,.right)
+        let duration=c.tableView(table,viewFor:NSTableColumn(identifier:.init("duration")),row:0) as! NSTableCellView
+        XCTAssertEqual(duration.textField?.alignment,.right)
         let title=c.tableView(table,viewFor:NSTableColumn(identifier:.init("title")),row:0) as! NSTableCellView
         XCTAssertEqual(title.toolTip,a.title)
     }
-    func testSpaceDoesNotTogglePlaybackWhenAControlHasFocus() {
-        XCTAssertFalse(AppDelegate.handlesPlaybackSpace(key(49),responder:ScrubSlider()))
+    func testSpaceTogglesPlaybackFromSlidersAndTablesButPreservesTextAndButtons() {
+        XCTAssertTrue(AppDelegate.handlesPlaybackSpace(key(49),responder:ScrubSlider()))
+        XCTAssertTrue(AppDelegate.handlesPlaybackSpace(key(49),responder:NSSlider()))
         XCTAssertFalse(AppDelegate.handlesPlaybackSpace(key(49),responder:NSButton()))
         XCTAssertFalse(AppDelegate.handlesPlaybackSpace(key(49),responder:NSTextView()))
         XCTAssertTrue(AppDelegate.handlesPlaybackSpace(key(49),responder:TrackListView()))
@@ -121,7 +122,7 @@ import SwiftUI
         let window=NSWindow(contentRect:NSRect(x:0,y:0,width:900,height:200),styleMask:[.titled],backing:.buffered,defer:false)
         window.contentView=host;host.layoutSubtreeIfNeeded()
         let table=descendants(host).compactMap {$0 as? TrackListView}.first!
-        let cell=table.view(atColumn:7,row:0,makeIfNecessary:true) as! NSTableCellView
+        let cell=table.view(atColumn:table.tableColumns.firstIndex(where: { $0.identifier.rawValue == "duration" })!,row:0,makeIfNecessary:true) as! NSTableCellView
         cell.layoutSubtreeIfNeeded()
         XCTAssertLessThanOrEqual(cell.textField!.alignmentRect(forFrame:cell.textField!.frame).maxX,cell.bounds.maxX-12)
         XCTAssertEqual(cell.textField?.stringValue,"1:01")

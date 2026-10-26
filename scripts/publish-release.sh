@@ -29,8 +29,8 @@ if [[ -n "$reson_ref" ]]; then
         exit 1
     fi
 fi
-reson_image="Reson-$reson_version-macos-arm64.dmg"
+reson_image="reson-$reson_version-macos-arm64.dmg"
 (cd build/dist && sha256sum -c "$reson_image.sha256")
 gh release create "$reson_tag" "build/dist/$reson_image" "build/dist/$reson_image.sha256" \
-    --target "$reson_commit" --title "Reson $reson_tag" \
+    --target "$reson_commit" --title "reson $reson_tag" \
     --notes-file docs/release-notes.md --generate-notes

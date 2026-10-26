@@ -20,7 +20,7 @@ class PublishTests(unittest.TestCase):
         shutil.copyfile(SCRIPT, self.root / 'scripts/publish-release.sh')
         self.dist = self.root / 'build/dist'
         self.dist.mkdir(parents=True)
-        self.image = self.dist / 'Reson-1.2.3-macos-arm64.dmg'
+        self.image = self.dist / 'reson-1.2.3-macos-arm64.dmg'
         self.image.write_bytes(b'verified disk image fixture')
         digest = hashlib.sha256(self.image.read_bytes()).hexdigest()
         self.image.with_suffix('.dmg.sha256').write_text(f'{digest}  {self.image.name}\n')

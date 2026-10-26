@@ -36,7 +36,7 @@ struct LibraryNavigationRow: NSViewRepresentable {
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             let cell = NSTableCellView()
             let label = NSTextField(labelWithString: "All Tracks")
-            label.font = .systemFont(ofSize: 13); label.translatesAutoresizingMaskIntoConstraints = false
+            label.font = InterfaceStyle.tableFont; label.translatesAutoresizingMaskIntoConstraints = false
             let image = NSImageView(image: NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)!)
             image.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(label); cell.textField = label; cell.addSubview(image); cell.imageView = image
@@ -98,7 +98,7 @@ struct PlaylistSidebar: NSViewRepresentable {
                 let icon=NSImageView(image:NSImage(systemSymbolName:"music.note.list",accessibilityDescription:nil)!)
                 icon.translatesAutoresizingMaskIntoConstraints=false; icon.contentTintColor = .secondaryLabelColor; cell.addSubview(icon); cell.imageView=icon
                 NSLayoutConstraint.activate([icon.leadingAnchor.constraint(equalTo:cell.leadingAnchor,constant:6),icon.widthAnchor.constraint(equalToConstant:14),icon.heightAnchor.constraint(equalToConstant:14),icon.centerYAnchor.constraint(equalTo:cell.centerYAnchor)])
-                label.font = .systemFont(ofSize:13); label.lineBreakMode = .byTruncatingTail
+                label.font = InterfaceStyle.tableFont; label.lineBreakMode = .byTruncatingTail
             }
             cell.textField?.stringValue=parent.playlists[row].name; cell.toolTip=parent.playlists[row].name; cell.textField?.setAccessibilityLabel(parent.playlists[row].name); return cell
         }

@@ -453,7 +453,7 @@ impl Engine {
                 }));
                 if result.is_err() {
                     let mut s = lock(&copy);
-                    s.fail("Playback worker panic; restart Reson".into());
+                    s.fail("Playback worker panic; restart reson".into());
                     s.acknowledged = u64::MAX;
                 }
             })

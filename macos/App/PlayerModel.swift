@@ -232,7 +232,19 @@ final class PlayerModel {
             }
         }
     }
-    func togglePlayback() { control(playback.state == 2 ? 2 : 1) }
+    private var playbackStartRow: PlaybackSnapshot? {
+        if let selected, !selected.missing { return selected }
+        return tracks.first { !$0.missing }
+    }
+    var canTogglePlayback: Bool {
+        !closing && playback.state != 1 && (!playback.path.isEmpty || playbackStartRow != nil)
+    }
+    func togglePlayback() {
+        guard canTogglePlayback else { return }
+        if playback.path.isEmpty {
+            if let row = playbackStartRow { playRow(row.rowID) }
+        } else { control(playback.state == 2 ? 2 : 1) }
+    }
     func stop() { timeline.cancel(); completion.disarm(); skippingFiles=false; control(0) }
     private func control(_ action: UInt32) {
         guard !closing, action==0 || !playback.path.isEmpty else { return }

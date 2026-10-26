@@ -1,12 +1,12 @@
 # Audio behaviour and limits
 
-Reson supports local FLAC, PCM WAV and MP3 playback using rodio, Symphonia and cpal/CoreAudio. Exact dependency versions are recorded in `Cargo.lock`.
+reson supports local FLAC, PCM WAV and MP3 playback using rodio, Symphonia and cpal/CoreAudio. Exact dependency versions are recorded in `Cargo.lock`.
 
 ## Source and output
 
 The audio-details popover reports the source format, sample rate, channels and known bit depth separately from the opened stream's rate, channels and sample format. Rodio mixes floating-point samples and adapts source rate/channels to the configured output. CoreAudio and the device can apply further conversion.
 
-Lossless decoding does not imply bit-perfect output. Reson does not configure exclusive device access or OS-wide sample-rate matching. A matching reported rate does not establish physical output precision.
+Lossless decoding does not imply bit-perfect output. reson does not configure exclusive device access or OS-wide sample-rate matching. A matching reported rate does not establish physical output precision.
 
 ## Playback lifecycle
 

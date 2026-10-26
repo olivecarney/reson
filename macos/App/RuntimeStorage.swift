@@ -14,7 +14,7 @@ struct RuntimeStorage {
                 || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
                 || NSClassFromString("XCTestCase") != nil
             return try resolve(environment: ProcessInfo.processInfo.environment, testing: testing)
-        } catch { fatalError("Reson storage isolation failed: \(error.localizedDescription)") }
+        } catch { fatalError("reson storage isolation failed: \(error.localizedDescription)") }
     }()
     static func resolve(environment: [String: String], testing: Bool) throws -> RuntimeStorage {
         let home = FileManager.default.homeDirectoryForCurrentUser
@@ -43,7 +43,7 @@ struct RuntimeStorage {
         for protected in [personal,cache] {
             let protected = protected.resolvingSymlinksInPath()
             guard !inside(root,protected), !inside(protected,root) else {
-                throw LibraryError(message:"Isolated storage must be separate from personal Reson data.")
+                throw LibraryError(message:"Isolated storage must be separate from personal reson data.")
             }
         }
         for name in ["library.db", "library.db-wal", "library.db-shm", "Artwork", "Preferences.plist"] {

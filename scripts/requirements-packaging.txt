@@ -1,4 +1,4 @@
-# Build-time tools only; not included in Reson.app.
+# Build-time tools only; not included in reson.app.
 dmgbuild==1.6.7 \
     --hash=sha256:37ee5771c377beb3203d9164aae8046ffed8531c06edf9227f5788b3c599b1bf \
     --hash=sha256:676b17acd448899f6d4a83b2184e0657480444ecb6ac9c4922889efad9e5dbfb

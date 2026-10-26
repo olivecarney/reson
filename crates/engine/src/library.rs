@@ -73,7 +73,7 @@ impl LibraryStore {
         connection.busy_timeout(std::time::Duration::from_secs(2))?;
         let version: i64 = connection.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         if version > 3 {
-            return Err("Library was created by a newer Reson version".into());
+            return Err("Library was created by a newer reson version".into());
         }
         connection.execute_batch(
             "PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;",

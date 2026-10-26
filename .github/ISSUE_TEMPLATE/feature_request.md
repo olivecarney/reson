@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an improvement to Reson
+about: Suggest an improvement to reson
 title: ''
 labels: enhancement
 ---

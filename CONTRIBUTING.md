@@ -1,4 +1,4 @@
-# Contributing to Reson
+# Contributing to reson
 
 Contributions to playback reliability, library organisation, accessibility, documentation and tests are welcome. For larger features, open an issue first so we can agree on the problem and direction.
 

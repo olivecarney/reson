@@ -65,7 +65,7 @@ enum BridgeError: LocalizedError {
         case .superseded: return "Playback request was superseded."
         case .closed: return "Playback engine is closed."
         case .snapshotChanged: return "Playback changed while reading its status. Try again."
-        case .status(let code): return [1: "Invalid playback request.", 2: "Playback queue is full. Try again.", 3: "Playback worker is unavailable. Restart Reson.", 5: "Playback engine failed."][code] ?? "Playback error \(code)."
+        case .status(let code): return [1: "Invalid playback request.", 2: "Playback queue is full. Try again.", 3: "Playback worker is unavailable. Restart reson.", 5: "Playback engine failed."][code] ?? "Playback error \(code)."
         }
     }
 }

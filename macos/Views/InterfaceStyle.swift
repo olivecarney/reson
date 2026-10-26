@@ -9,8 +9,12 @@ enum InterfaceStyle {
     static let windowMinimum = NSSize(width: 820, height: 520)
     static let background = Color(nsColor: .textBackgroundColor)
     static let controlSize: CGFloat = 28
+    // Match Codex’s native macOS interface typography across SwiftUI and AppKit.
+    static let body = Font.system(size: 14)
     static let heading = Font.system(size: 18, weight: .medium)
-    static let tableFont = NSFont.systemFont(ofSize: 13, weight: .regular)
+    static let tableFont = NSFont.systemFont(ofSize: 14, weight: .regular)
+    static let tableHeaderFont = NSFont.systemFont(ofSize: 14, weight: .medium)
+    static let timeFont = NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .regular)
 }
 
 struct EmptyState: View {
@@ -21,8 +25,9 @@ struct EmptyState: View {
         VStack(spacing: 10) {
             Image(systemName: symbol).font(.system(size: 28, weight: .light)).foregroundStyle(.secondary).accessibilityHidden(true)
             Text(title).font(.headline)
-            Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
-        }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
+            Text(detail).font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 340)
+        }.padding(16)
     }
 }
 

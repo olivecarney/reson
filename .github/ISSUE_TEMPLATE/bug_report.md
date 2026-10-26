@@ -13,7 +13,7 @@ labels: bug
 
 ## Environment
 
-- Reson version or commit:
+- reson version or commit:
 - macOS version:
 - Mac model / Apple Silicon chip:
 - Audio format and output device (if relevant):

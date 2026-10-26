@@ -11,10 +11,10 @@ cd macos
 swift build -c release --arch arm64
 reson_bin="$(swift build -c release --arch arm64 --show-bin-path)"
 cd "$reson_root"
-mkdir -p build/Reson.app/Contents/MacOS
-cp "$reson_bin/Reson" build/Reson.app/Contents/MacOS/Reson
-cp macos/Info.plist build/Reson.app/Contents/Info.plist
+mkdir -p build/reson.app/Contents/MacOS
+cp "$reson_bin/Reson" build/reson.app/Contents/MacOS/reson
+cp macos/Info.plist build/reson.app/Contents/Info.plist
 ./scripts/build-icon.sh
 python3 scripts/bundle-licenses.py
-codesign --force --sign - build/Reson.app
-printf 'Built %s/build/Reson.app\n' "$reson_root"
+codesign --force --sign - build/reson.app
+printf 'Built %s/build/reson.app\n' "$reson_root"

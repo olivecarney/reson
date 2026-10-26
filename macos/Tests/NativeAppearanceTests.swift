@@ -20,7 +20,7 @@ import SwiftUI
         var track = PlaybackSnapshot(); track.path = "/synthetic.wav"; track.duration = 61
         let coordinator = TrackTable(tracks: [track], selection: .constant(nil), play: { _ in }).makeCoordinator()
         let cell = try XCTUnwrap(coordinator.tableView(NSTableView(), viewFor: NSTableColumn(identifier: .init("duration")), row: 0) as? NSTableCellView)
-        XCTAssertEqual(cell.textField?.font, NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular))
+        XCTAssertEqual(cell.textField?.font, NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .regular))
         let title = try XCTUnwrap(coordinator.tableView(NSTableView(), viewFor: NSTableColumn(identifier: .init("title")), row: 0) as? NSTableCellView)
         XCTAssertFalse(title.textField!.font!.isFixedPitch)
     }

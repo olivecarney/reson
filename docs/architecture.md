@@ -1,6 +1,6 @@
 # Architecture
 
-Reson uses a native SwiftUI/AppKit interface over a Rust audio and library engine. There are no runtime network services or external Swift package dependencies.
+reson uses a native SwiftUI/AppKit interface over a Rust audio and library engine. There are no runtime network services or external Swift package dependencies.
 
 ```text
 SwiftUI / AppKit

@@ -85,3 +85,43 @@ final class TransportTests: XCTestCase {
     }
 
 }
+
+extension TransportModelTests {
+    func testIdlePlayUsesSelectedAvailableTrackAndPreservesVisibleSequence() async {
+        let model = PlayerModel()
+        var first = PlaybackSnapshot(); first.path = "/first.wav"
+        var selected = first; selected.path = "/selected.wav"
+        model.tracks = [first, selected]; model.selectedPath = selected.rowID
+        XCTAssertTrue(model.canTogglePlayback)
+        model.togglePlayback()
+        XCTAssertEqual(model.session.current?.path, "/selected.wav")
+        await model.shutdown()
+    }
+
+    func testIdlePlayFallsBackToFirstAvailableTrackAndDisablesMissingOnlyLists() async {
+        let model = PlayerModel()
+        var missing = PlaybackSnapshot(); missing.path = "/missing.wav"; missing.missing = true
+        var available = missing; available.path = "/available.wav"; available.missing = false
+        model.tracks = [missing]
+        XCTAssertFalse(model.canTogglePlayback)
+        model.tracks.append(available); model.selectedPath = missing.rowID
+        XCTAssertTrue(model.canTogglePlayback)
+        model.togglePlayback()
+        XCTAssertEqual(model.session.current?.path, "/available.wav")
+        await model.shutdown()
+        XCTAssertFalse(model.canTogglePlayback)
+    }
+
+    func testLoadedPlaybackTakesPrecedenceOverBrowsingSelectionAndLoadingDisablesPlay() async {
+        let model = PlayerModel()
+        var selected = PlaybackSnapshot(); selected.path = "/selected.wav"
+        model.tracks = [selected]; model.selectedPath = selected.rowID
+        model.playback.path = "/already-playing.wav"; model.playback.state = 2
+        XCTAssertTrue(model.canTogglePlayback)
+        model.togglePlayback()
+        XCTAssertNil(model.session.current, "Pausing a loaded track must not start the browsing selection")
+        model.playback.state = 1
+        XCTAssertFalse(model.canTogglePlayback)
+        await model.shutdown()
+    }
+}
