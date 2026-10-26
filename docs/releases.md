@@ -9,8 +9,9 @@
 3. `./scripts/package.sh` packages that app into a DMG, verifies the image, mounts it read-only and checks the app signature, icon, version, Finder layout and Applications shortcut. It writes a SHA-256 checksum.
 4. The DMG and checksum are uploaded as a 14-day Actions artifact.
 5. For `main` only, a lightweight Ubuntu job downloads those exact files from the same workflow run, verifies the checksum and publishes a new version. It does not compile or package anything.
+6. A separate Ubuntu job verifies the published release DMG against its checksum and GitHub asset digest, updates the mirrored cask and Homebrew tap, and commits only if a cask changed. Cask synchronization does not build the app.
 
-Pull requests cannot publish releases. The build job has read-only repository permissions; only the trusted publishing job has permission to write a release. Pinned action revisions and hash-checked packaging dependencies keep the tooling explicit. Rust cache keys include the architecture, toolchain and dependency lockfile; packaging downloads have their own cache.
+Pull requests cannot publish releases. The build job has read-only repository permissions; only trusted `main` publish/sync jobs have repository write permission. The Homebrew sync uses a dedicated write deploy key scoped to the tap, stored in the reson repository secret `HOMEBREW_TAP_DEPLOY_KEY`; pull requests cannot access this job. Pinned action revisions and hash-checked packaging dependencies keep the tooling explicit. Rust cache keys include the architecture, toolchain and dependency lockfile; packaging downloads have their own cache.
 
 ## Publish a version
 
@@ -45,8 +46,20 @@ The app targets macOS 14+, while compilation requires the macOS 26 SDK. Official
 
 The project-maintained [olivecarney/homebrew-tap](https://github.com/olivecarney/homebrew-tap) provides `brew install --cask olivecarney/tap/reson`. Its cask source is also kept in `packaging/homebrew/Casks/reson.rb`. It requires Apple Silicon and macOS 14+, installs `reson.app` into Applications, and preserves personal data on uninstall. No zap or Gatekeeper-bypass hooks are included.
 
-The cask pins a versioned release DMG, verified against both its published SHA-256 and GitHub asset digest. After each new release, update the tap and mirrored cask version/checksum together. Validate with `brew style <cask-path>` and `brew audit --cask --online olivecarney/tap/reson`, then test install/uninstall using a temporary `--appdir` without launching the production bundle.
+The cask pins a versioned release DMG, verified against both its published SHA-256 and GitHub asset digest. After each successful publication, CI updates the tap and mirrored cask version/checksum automatically. Existing identical casks are a no-op; attempts to downgrade newer casks fail. Validate with `brew style <cask-path>` and `brew audit --cask --online olivecarney/tap/reson`, then test install/uninstall using a temporary `--appdir` without launching the production bundle.
 
 ## Lowercase app naming
 
 Version 0.5.4 uses `reson.app`, the `reson` executable, and `reson-<version>-macos-arm64.dmg`. Bundle identifiers and existing application-support/cache paths remain unchanged so upgrades retain library and preference data. When updating the Homebrew cask to this release, use the lowercase asset URL and `app "reson.app"`; older release URLs retain their original case.
+
+## Homebrew-only recovery (no app build)
+
+To repair or verify the cask for an already published stable release, run:
+
+```sh
+gh workflow run ci.yml --ref main -f homebrew_only=true -f version=0.5.4
+```
+
+The same mode is available through Actions → Build, test and release → Run workflow: select Homebrew-only sync and enter the published version without `v`. The macOS build and release-publication jobs are skipped. This mode downloads and verifies the existing release; it does not alter its tag, assets, app version or build number. Normal reruns of publication also reuse an existing release without replacing it.
+
+The mirrored cask is updated with the workflow's repository-scoped `GITHUB_TOKEN`, using the current file SHA to detect concurrent edits. Its `[skip ci]` commit does not invoke another app build. The tap checkout uses `HOMEBREW_TAP_DEPLOY_KEY`, and the updater pushes only `Casks/reson.rb`. To rotate the credential, replace the tap's deploy key and matching reson secret together. The private key is never committed.

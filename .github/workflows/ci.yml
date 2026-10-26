@@ -6,6 +6,15 @@ on:
   pull_request:
     paths-ignore: ["**/*.md"]
   workflow_dispatch:
+    inputs:
+      homebrew_only:
+        description: "Sync Homebrew from an existing release without building"
+        type: boolean
+        default: false
+      version:
+        description: "Published version for Homebrew-only sync (e.g. 0.5.4)"
+        type: string
+        default: ""
 permissions:
   contents: read
 concurrency:
@@ -13,6 +22,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || !inputs.homebrew_only
     name: macOS build and test
     runs-on: macos-26
     timeout-minutes: 30
@@ -83,3 +93,52 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RESON_VERSION: ${{ needs.build.outputs.version }}
         run: ./scripts/publish-release.sh "$RESON_VERSION" "$GITHUB_SHA"
+  homebrew:
+    name: Sync verified Homebrew cask
+    needs: [build, publish]
+    if: >-
+      ${{ always() && !cancelled() && github.ref == 'refs/heads/main' &&
+          (needs.publish.result == 'success' ||
+           (github.event_name == 'workflow_dispatch' && inputs.homebrew_only)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: homebrew-tap
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out Homebrew tap with its dedicated deploy key
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: olivecarney/homebrew-tap
+          ref: main
+          path: build/homebrew-tap
+          ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          persist-credentials: true
+      - name: Verify published download and sync mirrored cask
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RESON_VERSION: ${{ needs.build.outputs.version || inputs.version }}
+        run: >-
+          python3 scripts/update-homebrew.py --repository "$GH_REPO"
+          --version "$RESON_VERSION" --tap build/homebrew-tap/Casks/reson.rb
+          --publish-mirror
+      - name: Commit tap update only when the cask changed
+        working-directory: build/homebrew-tap
+        env:
+          RESON_VERSION: ${{ needs.build.outputs.version || inputs.version }}
+        run: |
+          if git diff --quiet -- Casks/reson.rb; then
+            echo "Homebrew tap is already current; no commit needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/reson.rb
+          git commit -m "Update reson cask to verified $RESON_VERSION release"
+          git push origin HEAD:main
