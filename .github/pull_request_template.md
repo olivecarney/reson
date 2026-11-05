@@ -8,5 +8,6 @@ Describe the problem and resulting behaviour. Link any related issue.
 - [ ] Relevant regression tests added or updated
 - [ ] Manual playback/UI checks described when relevant
 - [ ] User-facing documentation updated when relevant
+- [ ] No version bump (maintainers decide releases), personal music, databases or private paths
 
 Include screenshots for UI changes and note your macOS version and hardware.

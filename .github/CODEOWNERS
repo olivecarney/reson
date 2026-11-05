@@ -1,0 +1,7 @@
+# Maintainers are requested for review on every pull request.
+* @olivecarney
+# Release, signing and publication paths need explicit maintainer sign-off.
+/.github/ @olivecarney
+/scripts/publish-release.sh @olivecarney
+/scripts/update-homebrew.py @olivecarney
+/packaging/ @olivecarney

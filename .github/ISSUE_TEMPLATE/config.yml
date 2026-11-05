@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/olivecarney/reson/security/advisories/new
+    about: Please report vulnerabilities privately rather than opening a public issue.
+  - name: Contributing guide
+    url: https://github.com/olivecarney/reson/blob/main/CONTRIBUTING.md
+    about: Setup, checks and expectations for pull requests.
