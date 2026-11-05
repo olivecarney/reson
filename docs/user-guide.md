@@ -76,7 +76,7 @@ Use **⇧⌘I** to import a local UTF-8 M3U8 playlist and **⇧⌘E** to export 
 | Pause / resume | Space (including focused seek/volume sliders) |
 | Create playlist | ⌘N |
 | Import / export M3U8 | ⇧⌘I / ⇧⌘E |
-| Show queue | ⌘J |
+| Show Up Next | ⌘J |
 | Next / previous track | ⌥⌘N / ⌥⌘P |
 | Move playlist / queue selection | ⌥⌘↑ / ⌥⌘↓ |
 | Remove playlist / queue selection | Delete |

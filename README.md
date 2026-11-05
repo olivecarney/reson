@@ -35,7 +35,7 @@ brew install --cask olivecarney/tap/reson
 
 The [project tap](https://github.com/olivecarney/homebrew-tap) pins a verified release DMG and checksum. Uninstall preserves personal library data. The cask does not bypass macOS security approval.
 
-Version 0.5.4 refines the native interface, fixes Space after seeking, simplifies Queue and Settings, and standardizes lowercase reson branding. See the [release notes](docs/release-notes.md).
+Version 0.6.0 rebuilds the interface on native macOS 26 components with Liquid Glass: a floating player, a glass inspector, toolbar search and System, Light or Dark appearance. It also speeds up library scans. See the [release notes](docs/release-notes.md).
 
 ## Listen
 

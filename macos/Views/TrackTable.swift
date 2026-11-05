@@ -220,7 +220,7 @@ struct TrackTable: NSViewRepresentable {
                 add("Move Up (⌘⌥↑)",.moveUp,parent.editingEnabled && (indexes.first ?? 0)>0)
                 add("Move Down (⌘⌥↓)",.moveDown,parent.editingEnabled && !indexes.isEmpty && (indexes.last ?? 0)+1<parent.tracks.count)
             }
-            if parent.sourceID != "queue" {add("Show Queue",.showQueue)}
+            if parent.sourceID != "queue" {add("Show Up Next",.showQueue)}
         }
         func tableView(_ tableView:NSTableView,writeRowsWith rows:IndexSet,to board:NSPasteboard)->Bool {
             let selected=rows.compactMap {parent.tracks.indices.contains($0) ? parent.tracks[$0] : nil}

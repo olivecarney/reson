@@ -1,3 +1,18 @@
+## Changes in 0.6.0
+
+An interface redesign for macOS 26 and Liquid Glass, with no new runtime dependencies.
+
+- Rebuilt the window on native components: a system sidebar, a trailing inspector, toolbar search, and the list name and track count as the window title and subtitle.
+- Replaced the bottom transport bar with a floating glass player that adapts to narrow windows. Import progress, notices and errors appear as glass cards above it, and the list scrolls beneath both.
+- Redesigned Track Details in the style of Get Info, with large artwork and grouped Music, Audio and File sections.
+- Adopted standard 13 pt system typography, inset alternating track rows and native empty states.
+- Added an Appearance setting (System, Light or Dark). reson now follows the system appearance by default instead of always using dark mode.
+- Renamed Queue to Up Next. ⌘J and the Play Next / Add to Queue actions are unchanged.
+- macOS 14 and 15 use equivalent native materials. Reduce Transparency and Increase Contrast use solid surfaces.
+- Imports and rescans now batch database writes and read each file's tags once, so they finish faster on large folders.
+
+Existing library data, playlists, exclusions, artwork cache and preferences remain in their established locations. Replace the previous app when installing this update; no library migration or reimport is required.
+
 ## Changes in 0.5.4
 
 A native interface polish release, with no new runtime dependencies.
@@ -31,7 +46,7 @@ Existing library data, playlists, exclusions, artwork cache and preferences rema
 
 ## Download and install
 
-Download `reson-0.5.4-macos-arm64.dmg`, open it and drag **reson** to **Applications**. Eject the disk image, then open reson from Applications. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.
+Download `reson-0.6.0-macos-arm64.dmg`, open it and drag **reson** to **Applications**. Eject the disk image, then open reson from Applications. Requires Apple Silicon; the app targets macOS 14 or newer. Intel Macs are not supported. Older-system compatibility remains under validation.
 
 The app is ad-hoc signed, not Apple-notarized. After attempting to open a trusted download, use **System Settings → Privacy & Security → Open Anyway** if macOS blocks it.
 
@@ -46,6 +61,6 @@ This applies only to reson. For a permissions error, use Open Anyway. See the [f
 
 Use **⌘O** to play a FLAC/WAV/MP3 track or **⇧⌘O** to import your music folder. Library data stays on your Mac.
 
-To verify the download, place the DMG and its `.sha256` file in the same folder and run `shasum -a 256 -c reson-0.5.4-macos-arm64.dmg.sha256` there.
+To verify the download, place the DMG and its `.sha256` file in the same folder and run `shasum -a 256 -c reson-0.6.0-macos-arm64.dmg.sha256` there.
 
 See the README for playback limitations, controls and data locations. Lossless input does not imply bit-perfect output.

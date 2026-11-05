@@ -159,7 +159,7 @@ struct ContentView: View {
             }
         }
         ToolbarItemGroup(placement: .primaryAction) {
-            Button { model.showQueue = true } label: { Label("Show Queue", systemImage: "list.bullet") }.help("Show Queue (⌘J)")
+            Button { model.showQueue = true } label: { Label("Show Up Next", systemImage: "list.bullet") }.help("Show Up Next (⌘J)")
             Button { model.showInspector.toggle() } label: { Label("Toggle Inspector", systemImage: "info.circle") }
                 .accessibilityValue(model.showInspector ? "Shown" : "Hidden").help("Toggle Inspector (⌥⌘I)")
         }
@@ -197,8 +197,8 @@ struct ContentView: View {
                     }
                 }.padding(.horizontal, 10).padding(.vertical, 7).contentShape(Rectangle())
             }
-            .buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 10).help("Play Queue (⌘J)")
-            .accessibilityLabel("Play Queue, \(model.session.queue.count) pending tracks")
+            .buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 10).help("Show Up Next (⌘J)")
+            .accessibilityLabel("Up Next, \(model.session.queue.count) pending tracks")
         }
         .frame(maxHeight: .infinity, alignment: .top)
     }

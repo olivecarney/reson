@@ -68,7 +68,7 @@ struct ResonApp: App {
                 Divider()
                 Button("Play Next") {if let track=model.selected {model.enqueue([track],next:true)}}.disabled(model.selected==nil)
                 Button("Add to Queue") {if let track=model.selected {model.enqueue([track],next:false)}}.disabled(model.selected==nil)
-                Button("Show Queue") {model.showQueue=true}.keyboardShortcut("j")
+                Button("Show Up Next") {model.showQueue=true}.keyboardShortcut("j")
             }
             CommandGroup(after: .textEditing) {
                 Button("Search Library") {model.focusSearch()}.keyboardShortcut("f")
