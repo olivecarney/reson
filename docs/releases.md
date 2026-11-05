@@ -4,14 +4,14 @@
 
 `.github/workflows/ci.yml` is the only build/release workflow. It runs on pull requests, pushes to `main`, and manual dispatch. Documentation-only Markdown changes skip the workflow; changes to app source, scripts, licenses or the workflow still run it. Superseded runs for the same branch are cancelled.
 
-1. An Apple Silicon macOS 26 job installs Rust 1.99.0 and restores cached Cargo dependencies and compiled targets.
+1. An Apple Silicon macOS 26 job validates the version in `macos/Info.plist`, installs the Rust toolchain pinned in `rust-toolchain.toml` and restores cached Cargo dependencies and compiled targets.
 2. `./scripts/check.sh` runs formatting, Rust tests/Clippy, the release app build, Swift tests and bundle validation.
-3. `./scripts/package.sh` packages that app into a DMG, verifies the image, mounts it read-only and checks the app signature, icon, version, Finder layout and Applications shortcut. It writes a SHA-256 checksum.
+3. `./scripts/package.sh` packages that app into a DMG, verifies the image, mounts it read-only and checks the app signature, icon, version (against the one validated in step 1), Finder layout and Applications shortcut. It writes a SHA-256 checksum.
 4. The DMG and checksum are uploaded as a 14-day Actions artifact.
 5. For `main` only, a lightweight Ubuntu job downloads those exact files from the same workflow run, verifies the checksum and publishes a new version. It does not compile or package anything.
 6. A separate Ubuntu job verifies the published release DMG against its checksum and GitHub asset digest, updates the mirrored cask and Homebrew tap, and commits only if a cask changed. Cask synchronization does not build the app.
 
-Pull requests cannot publish releases. The build job has read-only repository permissions; only trusted `main` publish/sync jobs have repository write permission. The Homebrew sync uses a dedicated write deploy key scoped to the tap, stored in the reson repository secret `HOMEBREW_TAP_DEPLOY_KEY`; pull requests cannot access this job. Pinned action revisions and hash-checked packaging dependencies keep the tooling explicit. Rust cache keys include the architecture, toolchain and dependency lockfile; packaging downloads have their own cache.
+Pull requests cannot publish releases. The build job has read-only repository permissions; only trusted `main` publish/sync jobs have repository write permission. The Homebrew sync uses a dedicated write deploy key scoped to the tap, stored in the reson repository secret `HOMEBREW_TAP_DEPLOY_KEY`; pull requests cannot access this job. Pinned action revisions (kept current by monthly grouped Dependabot PRs) and hash-checked packaging dependencies keep the tooling explicit. Rust cache keys include the architecture, toolchain and dependency lockfile; packaging downloads have their own cache.
 
 ## Publish a version
 

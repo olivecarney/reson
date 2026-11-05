@@ -4,7 +4,7 @@ Contributions to playback reliability, library organisation, accessibility, docu
 
 ## Set up
 
-Use an Apple Silicon Mac, Xcode 26+ with the macOS 26 SDK and Swift 6.2+, Rust 1.99.0 or newer with the `aarch64-apple-darwin` target, and Python 3.10+. CI pins Rust 1.99.0. ffmpeg is needed only to regenerate audio fixtures.
+Use an Apple Silicon Mac, Xcode 26+ with the macOS 26 SDK and Swift 6.2+, Rust 1.99.0 or newer with the `aarch64-apple-darwin` target, and Python 3.10+. `rust-toolchain.toml` pins the CI toolchain (1.99.0); rustup picks it up automatically. ffmpeg is needed only to regenerate audio fixtures.
 
 Fork and clone the repository, create a focused branch, then run:
 

@@ -20,6 +20,10 @@ permissions:
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+  # Incremental artifacts bloat the target cache and are not reused between CI runs.
+  CARGO_INCREMENTAL: "0"
 jobs:
   build:
     if: github.event_name != 'workflow_dispatch' || !inputs.homebrew_only
@@ -32,11 +36,19 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Set up Rust
+      - name: Read app version
+        id: version
         run: |
-          rustup toolchain install 1.99.0 --profile minimal --component rustfmt --component clippy
-          rustup default 1.99.0
-          rustup target add aarch64-apple-darwin
+          version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' macos/Info.plist)
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error file=macos/Info.plist::Expected a stable three-part version, found '$version'"
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+      - name: Set up Rust from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustc --version
       - name: Cache Rust dependencies and compiled targets
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -44,9 +56,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-${{ runner.arch }}-rust-1.99.0-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-rust-${{ hashFiles('rust-toolchain.toml') }}-${{ hashFiles('Cargo.lock', '.cargo/config.toml') }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-rust-1.99.0-
+            ${{ runner.os }}-${{ runner.arch }}-rust-${{ hashFiles('rust-toolchain.toml') }}-
       - name: Cache packaging dependencies
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -54,13 +66,10 @@ jobs:
           key: ${{ runner.os }}-${{ runner.arch }}-packaging-${{ hashFiles('scripts/requirements-packaging.txt') }}
       - name: Check and build
         run: ./scripts/check.sh
-      - name: Read app version
-        id: version
-        run: |
-          version=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' build/reson.app/Contents/Info.plist)
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          echo "value=$version" >> "$GITHUB_OUTPUT"
       - name: Package and verify DMG
+        env:
+          # package.sh fails if the built bundle disagrees with the version validated above.
+          RESON_RELEASE_TAG: v${{ steps.version.outputs.value }}
         run: ./scripts/package.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -119,6 +128,11 @@ jobs:
           path: build/homebrew-tap
           ssh-key: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
           persist-credentials: true
+      - name: Require a version for Homebrew-only sync
+        if: needs.build.result == 'skipped' && inputs.version == ''
+        run: |
+          echo "::error::Homebrew-only sync needs the 'version' input (e.g. 0.5.4)."
+          exit 1
       - name: Verify published download and sync mirrored cask
         env:
           GH_TOKEN: ${{ github.token }}

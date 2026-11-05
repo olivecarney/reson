@@ -49,7 +49,7 @@ See the [user guide](docs/user-guide.md) for controls, library storage and troub
 
 ## Build from source
 
-You need an Apple Silicon Mac, Xcode 26 or newer with the macOS 26 SDK and Swift 6.2+, current stable Rust with the `aarch64-apple-darwin` target, and Python 3.10+. CI uses Rust 1.99.0.
+You need an Apple Silicon Mac, Xcode 26 or newer with the macOS 26 SDK and Swift 6.2+, current stable Rust with the `aarch64-apple-darwin` target, and Python 3.10+. CI uses the Rust version pinned in `rust-toolchain.toml` (1.99.0), which rustup selects automatically.
 
 ```sh
 git clone https://github.com/olivecarney/reson.git

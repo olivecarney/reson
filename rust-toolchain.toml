@@ -1,0 +1,7 @@
+# Single source of truth for the CI/release toolchain. rustup installs it on demand;
+# non-rustup compilers (e.g. Homebrew rustc) ignore this file.
+[toolchain]
+channel = "1.99.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-apple-darwin"]
