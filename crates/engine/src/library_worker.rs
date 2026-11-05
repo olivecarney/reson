@@ -1,5 +1,5 @@
 //! A dedicated database/scanner worker, independent of the playback engine.
-use crate::library::{LibraryStore, Result, Scan, ScanSummary, Sort};
+use crate::library::{LibraryStore, Result, Scan, ScanSummary, Sort, SCAN_BATCH};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
@@ -283,22 +283,23 @@ impl Worker {
             return;
         };
         let before = scan.summary.clone();
-        match self.store.step(scan) {
-            Ok(true) => {
-                self.status.summary.visited += scan.summary.visited - before.visited;
-                self.status.summary.indexed += scan.summary.indexed - before.indexed;
-                self.status.summary.failed += scan.summary.failed - before.failed;
-                if scan.summary.error.is_some() {
-                    self.status.summary.error = scan.summary.error.clone();
-                }
-                self.status.revision += 1;
-            }
+        let result = self.store.step_batch(scan, SCAN_BATCH);
+        // A batch can index files and then hit the end of the tree (or an error),
+        // so fold in its progress before acting on the outcome.
+        self.status.summary.visited += scan.summary.visited - before.visited;
+        self.status.summary.indexed += scan.summary.indexed - before.indexed;
+        self.status.summary.failed += scan.summary.failed - before.failed;
+        if scan.summary.error.is_some() {
+            self.status.summary.error = scan.summary.error.clone();
+        }
+        self.status.revision += 1;
+        match result {
+            Ok(true) => {}
             Ok(false) => {
                 if let Err(error) = self.store.finish(scan) {
                     self.fail(error);
                 }
                 self.active = None;
-                self.status.revision += 1;
             }
             Err(error) => {
                 self.fail(error);

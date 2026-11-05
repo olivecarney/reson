@@ -61,6 +61,9 @@ impl Sort {
         }
     }
 }
+/// Tracks indexed per write transaction during a scan; small enough to keep the
+/// library worker responsive to requests between batches.
+pub const SCAN_BATCH: usize = 32;
 pub struct LibraryStore {
     pub(crate) connection: Connection,
 }
@@ -164,6 +167,30 @@ impl LibraryStore {
         )?;
         Ok(scan)
     }
+    /// Runs `f` inside one write transaction so a batch of scan steps shares a single
+    /// commit (and WAL sync) instead of paying for one per track. Work that succeeded
+    /// before an error is still committed, matching per-statement autocommit semantics.
+    pub fn batch<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T>) -> Result<T> {
+        self.connection.execute_batch("BEGIN IMMEDIATE")?;
+        let result = f(self);
+        if let Err(error) = self.connection.execute_batch("COMMIT") {
+            let _ = self.connection.execute_batch("ROLLBACK");
+            return Err(error.into());
+        }
+        result
+    }
+    /// Advances `scan` by up to `limit` entries in one transaction. Returns false once
+    /// the tree is exhausted.
+    pub fn step_batch(&mut self, scan: &mut Scan, limit: usize) -> Result<bool> {
+        self.batch(|store| {
+            for _ in 0..limit {
+                if !store.step(scan)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        })
+    }
     pub fn scan(
         &mut self,
         path: &Path,
@@ -171,9 +198,16 @@ impl LibraryStore {
         mut progress: impl FnMut(&ScanSummary),
     ) -> Result<ScanSummary> {
         let mut scan = self.begin_scan(path)?;
-        while !cancel.load(Ordering::Relaxed) && self.step(&mut scan)? {
-            progress(&scan.summary);
-        }
+        // Cancellation and progress stay per-file; only commits are batched.
+        while self.batch(|store| {
+            for _ in 0..SCAN_BATCH {
+                if cancel.load(Ordering::Relaxed) || !store.step(&mut scan)? {
+                    return Ok(false);
+                }
+                progress(&scan.summary);
+            }
+            Ok(true)
+        })? {}
         if cancel.load(Ordering::Relaxed) {
             scan.summary.cancelled = true;
         } else {
@@ -326,18 +360,45 @@ impl Scan {
     }
 }
 fn index(path: &Path) -> Result<Track> {
+    use symphonia::core::meta::StandardTagKey;
     let metadata = std::fs::metadata(path)?;
-    let info = crate::playback::probe(path)?;
-    let mut track = Track {
+    // Header metadata only: no audio decoding, waveform, artwork or BPM analysis.
+    let (mut genre, mut bpm, mut key) = (None, None, None);
+    let info = crate::playback::probe_with_tags(path, |tag, text| {
+        if text.is_empty() {
+            return;
+        }
+        match tag.std_key {
+            Some(StandardTagKey::Genre) => genre = Some(text),
+            Some(StandardTagKey::Bpm) => {
+                bpm = text
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|n| n.is_finite() && *n > 0.0)
+            }
+            _ if matches!(
+                tag.key.to_ascii_lowercase().as_str(),
+                "initialkey" | "key" | "tkey"
+            ) =>
+            {
+                key = Some(text)
+            }
+            _ => {}
+        }
+    })?;
+    Ok(Track {
         path: path.to_str().ok_or("File path is not UTF-8")?.into(),
         title: info.title,
         artist: info.artist,
         album: info.album,
+        genre,
         duration: info.duration_seconds,
         sample_rate: info.sample_rate,
         channels: info.channels,
         bit_depth: info.bit_depth,
         format: info.format,
+        bpm,
+        key,
         size: i64::try_from(metadata.len())?,
         modified: metadata
             .modified()?
@@ -346,65 +407,7 @@ fn index(path: &Path) -> Result<Track> {
             .as_secs() as i64,
         imported: now(),
         ..Track::default()
-    };
-    // Header metadata only: no audio decoding, waveform, artwork or BPM analysis.
-    use symphonia::core::{
-        formats::FormatOptions,
-        io::MediaSourceStream,
-        meta::{MetadataOptions, StandardTagKey},
-        probe::Hint,
-    };
-    let mss = MediaSourceStream::new(Box::new(std::fs::File::open(path)?), Default::default());
-    let mut hint = Hint::new();
-    if let Some(ext) = path.extension().and_then(|s| s.to_str()) {
-        hint.with_extension(ext);
-    }
-    let mut p = symphonia::default::get_probe().format(
-        &hint,
-        mss,
-        &FormatOptions::default(),
-        &MetadataOptions {
-            limit_visual_bytes: symphonia::core::meta::Limit::Maximum(0),
-            ..MetadataOptions::default()
-        },
-    )?;
-    let mut metadata = p.metadata.get();
-    let format_metadata = p.format.metadata();
-    if let Some(meta) = metadata
-        .as_mut()
-        .and_then(|m| m.current())
-        .or_else(|| format_metadata.current())
-    {
-        for tag in meta.tags() {
-            let text = tag
-                .value
-                .to_string()
-                .trim_end_matches('\0')
-                .trim()
-                .to_string();
-            if text.is_empty() {
-                continue;
-            }
-            match tag.std_key {
-                Some(StandardTagKey::Genre) => track.genre = Some(text),
-                Some(StandardTagKey::Bpm) => {
-                    track.bpm = text
-                        .parse::<f64>()
-                        .ok()
-                        .filter(|n| n.is_finite() && *n > 0.0)
-                }
-                _ => {
-                    if matches!(
-                        tag.key.to_ascii_lowercase().as_str(),
-                        "initialkey" | "key" | "tkey"
-                    ) {
-                        track.key = Some(text);
-                    }
-                }
-            }
-        }
-    }
-    Ok(track)
+    })
 }
 
 // Check names before file-type queries or probing. AppleDouble leaves are not audio.

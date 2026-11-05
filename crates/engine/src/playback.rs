@@ -42,6 +42,14 @@ impl std::fmt::Display for EngineError {
 impl std::error::Error for EngineError {}
 pub type TrackInfo = Snapshot;
 pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
+    probe_with_tags(path, |_, _| {})
+}
+/// Probes container headers once, passing every tag other than title/artist/album to
+/// `other_tag` with its trimmed text, so callers needing more metadata avoid a second parse.
+pub(crate) fn probe_with_tags(
+    path: &Path,
+    mut other_tag: impl FnMut(&symphonia::core::meta::Tag, String),
+) -> Result<TrackInfo, EngineError> {
     let ext = path
         .extension()
         .and_then(|x| x.to_str())
@@ -98,34 +106,17 @@ pub fn probe(path: &Path) -> Result<TrackInfo, EngineError> {
         .or_else(|| format_metadata.current())
     {
         for tag in meta.tags() {
+            let text = tag
+                .value
+                .to_string()
+                .trim_end_matches('\0')
+                .trim()
+                .to_owned();
             match tag.std_key {
-                Some(StandardTagKey::TrackTitle) => {
-                    info.title = tag
-                        .value
-                        .to_string()
-                        .trim_end_matches('\0')
-                        .trim()
-                        .to_owned()
-                }
-                Some(StandardTagKey::Artist) => {
-                    info.artist = Some(
-                        tag.value
-                            .to_string()
-                            .trim_end_matches('\0')
-                            .trim()
-                            .to_owned(),
-                    )
-                }
-                Some(StandardTagKey::Album) => {
-                    info.album = Some(
-                        tag.value
-                            .to_string()
-                            .trim_end_matches('\0')
-                            .trim()
-                            .to_owned(),
-                    )
-                }
-                _ => {}
+                Some(StandardTagKey::TrackTitle) => info.title = text,
+                Some(StandardTagKey::Artist) => info.artist = Some(text),
+                Some(StandardTagKey::Album) => info.album = Some(text),
+                _ => other_tag(tag, text),
             }
         }
     }
