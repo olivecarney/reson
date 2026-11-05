@@ -4,13 +4,18 @@ set -euo pipefail
 reson_root="$(cd "$(dirname "$0")/.." && pwd)"
 reson_app="$reson_root/build/reson.app"
 reson_development="$reson_root/build/reson Development.app"
-if [[ "${1:-}" == "--personal" ]]; then
-    if [[ ! -x "$reson_app/Contents/MacOS/reson" ]]; then "$reson_root/scripts/build.sh"; fi
+reson_personal=false
+case "${1:-}" in
+    "") ;;
+    --personal) reson_personal=true ;;
+    *) echo 'Usage: scripts/run.sh [--personal]' >&2; exit 1 ;;
+esac
+if [[ $# -gt 1 ]]; then echo 'Usage: scripts/run.sh [--personal]' >&2; exit 1; fi
+if [[ ! -x "$reson_app/Contents/MacOS/reson" ]]; then "$reson_root/scripts/build.sh"; fi
+if [[ "$reson_personal" == true ]]; then
     open "$reson_app"
     exit 0
 fi
-if [[ $# -gt 0 ]]; then echo 'Usage: scripts/run.sh [--personal]' >&2; exit 1; fi
-if [[ ! -x "$reson_app/Contents/MacOS/reson" ]]; then "$reson_root/scripts/build.sh"; fi
 rm -rf "$reson_development"
 ditto "$reson_app" "$reson_development"
 /usr/libexec/PlistBuddy -c 'Set CFBundleIdentifier dev.reson.player.development' "$reson_development/Contents/Info.plist"

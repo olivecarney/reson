@@ -13,10 +13,11 @@ done
 iconutil -c icns "$reson_iconset" -o build/reson.app/Contents/Resources/AppIcon.icns
 
 # Compile the native macOS 26+ icon alongside the transparent legacy fallback.
+reson_minimum="$(/usr/libexec/PlistBuddy -c 'Print LSMinimumSystemVersion' macos/Info.plist)"
 mkdir -p build/NativeIcon
 xcrun actool macos/Resources/AppIcon.icon --compile build/NativeIcon \
     --app-icon AppIcon --output-format human-readable-text \
     --output-partial-info-plist build/NativeIcon/Info.plist \
     --include-all-app-icons --target-device mac \
-    --minimum-deployment-target 14.0 --platform macosx
+    --minimum-deployment-target "$reson_minimum" --platform macosx
 cp build/NativeIcon/Assets.car build/reson.app/Contents/Resources/Assets.car

@@ -803,8 +803,8 @@ fn run_worker<B: Backend>(
                             s.position_seconds = pos;
                         }
                     }
-                    if matches!(env.command, Command::Device(_)) && operation_error.is_some() {
-                        s.fail(operation_error.clone().unwrap());
+                    if let (Command::Device(_), Some(error)) = (&env.command, &operation_error) {
+                        s.fail(error.clone());
                         s.failure_kind = Some("output".into());
                     }
                     s.operation_error = operation_error;
@@ -849,10 +849,11 @@ fn run_worker<B: Backend>(
     }
     backend.stop();
 }
-#[cfg(test)]
-#[path = "worker_tests.rs"]
-mod tests;
 
 fn configure_output(builder: DeviceSinkBuilder) -> DeviceSinkBuilder {
     builder.with_buffer_size(rodio::cpal::BufferSize::Default)
 }
+
+#[cfg(test)]
+#[path = "worker_tests.rs"]
+mod tests;

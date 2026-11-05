@@ -1,7 +1,27 @@
 // swift-tools-version: 5.9
 import PackageDescription
-let package = Package(name: "Reson", platforms: [.macOS(.v14)], products: [.executable(name: "Reson", targets: ["Reson"])], targets: [
-    .systemLibrary(name: "CReson", path: "Bridge"),
-    .executableTarget(name: "Reson", dependencies: ["CReson"], path: ".", exclude: ["Resources", "Bridge", "Tests", "Package.swift", "Info.plist"], sources: ["App", "Views"], linkerSettings: [.unsafeFlags(["-L", "../target/release", "-lreson_engine"]), .linkedLibrary("sqlite3"), .linkedFramework("CoreAudio"), .linkedFramework("AudioToolbox"), .linkedFramework("CoreFoundation")]),
-    .testTarget(name: "ResonTests", dependencies: ["Reson"], path: "Tests")
-])
+
+let package = Package(
+    name: "Reson",
+    platforms: [.macOS(.v14)],
+    products: [.executable(name: "Reson", targets: ["Reson"])],
+    targets: [
+        .systemLibrary(name: "CReson", path: "Bridge"),
+        .executableTarget(
+            name: "Reson",
+            dependencies: ["CReson"],
+            path: ".",
+            exclude: ["Resources", "Bridge", "Tests", "Package.swift", "Info.plist"],
+            sources: ["App", "Views"],
+            linkerSettings: [
+                // scripts/build.sh stages the Rust static library here before `swift build`.
+                .unsafeFlags(["-L", "../target/release", "-lreson_engine"]),
+                .linkedLibrary("sqlite3"),
+                .linkedFramework("CoreAudio"),
+                .linkedFramework("AudioToolbox"),
+                .linkedFramework("CoreFoundation"),
+            ]
+        ),
+        .testTarget(name: "ResonTests", dependencies: ["Reson"], path: "Tests"),
+    ]
+)

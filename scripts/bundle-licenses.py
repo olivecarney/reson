@@ -42,13 +42,8 @@ for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version
     for path in license_files:
         shutil.copyfile(path, destination / path.name)
 (notices / 'THIRD-PARTY-NOTICES.txt').write_text('\n'.join(lines) + '\n')
-# Include the standard library licenses shipped with the compiler where available.
-sysroot = Path(subprocess.check_output(['rustc', '--print', 'sysroot'], text=True).strip())
-for name in ('LICENSE-APACHE', 'LICENSE-MIT', 'COPYRIGHT'):
-    path = sysroot / 'share/doc/rust' / name
-    if path.is_file():
-        shutil.copyfile(path, notices / f'Rust-{name}.txt')
-
+# Vendored standard-library license texts keep the bundle identical across rustup,
+# Homebrew and other toolchain layouts (sysroot docs are not always installed).
 for path in (root / 'licenses/rust').iterdir():
     if path.is_file():
         shutil.copyfile(path, notices / f'Rust-{path.name}')
