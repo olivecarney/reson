@@ -113,8 +113,9 @@ impl LibraryStore {
     }
     pub fn playlist_entries(&self, id: i64, offset: u32, limit: u32) -> Result<Vec<PlaylistEntry>> {
         require(&self.connection, id)?;
-        // Path fallback reconnects a stale/unindexed entry after an explicit folder import.
-        let mut q=self.connection.prepare("SELECT e.id,t.id,coalesce(t.path,e.path),coalesce(t.title,e.title),t.artist,t.album,t.genre,coalesce(t.duration,e.duration),t.sample_rate,t.channels,t.bit_depth,coalesce(t.format,''),t.bpm,t.musical_key,coalesce(t.size,0),coalesce(t.modified,0),coalesce(t.imported,0),coalesce(t.missing,1) FROM playlist_entries e LEFT JOIN tracks t ON t.id=coalesce((SELECT id FROM tracks WHERE id=e.track_id AND path=e.path),(SELECT id FROM tracks WHERE path=e.path)) WHERE e.playlist_id=?1 ORDER BY e.position,e.id LIMIT ?2 OFFSET ?3")?;
+        // Join on the (unique) path rather than track_id so stale or unindexed entries
+        // reconnect after an explicit folder import, even if the track was re-created.
+        let mut q=self.connection.prepare("SELECT e.id,t.id,coalesce(t.path,e.path),coalesce(t.title,e.title),t.artist,t.album,t.genre,coalesce(t.duration,e.duration),t.sample_rate,t.channels,t.bit_depth,coalesce(t.format,''),t.bpm,t.musical_key,coalesce(t.size,0),coalesce(t.modified,0),coalesce(t.imported,0),coalesce(t.missing,1) FROM playlist_entries e LEFT JOIN tracks t ON t.path=e.path WHERE e.playlist_id=?1 ORDER BY e.position,e.id LIMIT ?2 OFFSET ?3")?;
         let rows = q
             .query_map(params![id, limit.clamp(1, 500), offset], |r| {
                 Ok(PlaylistEntry {
