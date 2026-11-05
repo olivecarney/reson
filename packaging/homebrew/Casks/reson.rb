@@ -1,6 +1,6 @@
 cask "reson" do
-  version "0.5.4"
-  sha256 "ea9e354ab87fda5cf28f6e747fc461f5d246a75575e54caf2b42a940b0d997ba"
+  version "0.6.0"
+  sha256 "ef74783366bb1fbdf8c5f26d49bcaff5402a2ffe7220b5e543ec9ca7385ae505"
 
   url "https://github.com/olivecarney/reson/releases/download/v#{version}/reson-#{version}-macos-arm64.dmg"
   name "reson"
