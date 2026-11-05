@@ -15,10 +15,15 @@ struct TransportView: View {
                     playbackControls.fixedSize()
                     outputControls.fixedSize().frame(minWidth: 180, maxWidth: .infinity, alignment: .trailing)
                 }
-                // Compact: identity and output share a row; transport sits centred below.
+                // Compact: identity gets its own row so titles stay readable; below it, volume,
+                // centred transport and output share a row, as in IINA's narrow controller.
                 VStack(spacing: 6) {
-                    HStack(spacing: 8) { trackIdentity; Spacer(minLength: 4); outputControls.fixedSize() }
-                    playbackControls.fixedSize()
+                    trackIdentity.frame(maxWidth: .infinity, alignment: .leading)
+                    HStack(spacing: 8) {
+                        volumeControls(sliderWidth: 56).frame(maxWidth: .infinity, alignment: .leading)
+                        playbackControls.fixedSize()
+                        deviceControls.fixedSize().frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
             }
             HStack(spacing: 8) {
@@ -75,13 +80,22 @@ struct TransportView: View {
     }
 
     private var outputControls: some View {
+        HStack(spacing: 6) { volumeControls(sliderWidth: 80); deviceControls }
+    }
+
+    private func volumeControls(sliderWidth: CGFloat) -> some View {
         HStack(spacing: 6) {
             transportButton(volumeSymbol, isSilent ? "Unmute" : "Mute", "Mute / Unmute", enabled: true, action: model.toggleMute)
                 .foregroundStyle(.secondary)
                 .contentTransition(.symbolEffect(.replace))
                 .accessibilityValue(isSilent ? "Muted" : "\(Int((model.volume * 100).rounded())) percent")
             Slider(value: Binding(get: { model.volume }, set: { model.setVolume($0) }), in: 0...1)
-                .frame(width: 80).controlSize(.mini).accessibilityLabel("App volume")
+                .frame(width: sliderWidth).controlSize(.mini).accessibilityLabel("App volume")
+        }
+    }
+
+    private var deviceControls: some View {
+        HStack(spacing: 6) {
             Menu {
                 Picker("Output", selection: Binding(get: { model.playback.preferredDevice }, set: { model.selectOutput($0) })) {
                     Text("System Default").tag(String?.none)
