@@ -28,12 +28,16 @@ final class PlayerModel {
     }
     var showSidebar = true
     var showInspector = false
+    var appearance: AppAppearance = .system {
+        didSet { settings.set(appearance.rawValue, forKey: "appearance") }
+    }
     var message: String?
     var notice: String?
     private let bridge: EngineBridge
     let library: LibraryBridge
     init(databaseURL: URL? = nil, settings: UserDefaults = RuntimeStorage.current.preferences) {
         library=LibraryBridge(databaseURL:databaseURL); self.settings=settings
+        appearance=(settings.object(forKey:"appearance") as? String).flatMap(AppAppearance.init(rawValue:)) ?? .system
         let saved=settings.object(forKey:"playbackVolume") as? Double ?? 1
         let initialVolume=saved.isFinite ? min(max(saved,0),1) : 1
         volume=initialVolume

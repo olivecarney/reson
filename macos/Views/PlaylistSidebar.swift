@@ -10,7 +10,7 @@ struct LibraryNavigationRow: NSViewRepresentable {
         let scroll = NSScrollView()
         let table = NSTableView()
         table.setAccessibilityLabel("Library")
-        table.headerView = nil; table.style = .sourceList; table.rowHeight = 30
+        table.headerView = nil; table.style = .sourceList; table.rowHeight = 28
         table.backgroundColor = .clear
         table.addTableColumn(NSTableColumn(identifier: .init("library")))
         table.delegate = context.coordinator; table.dataSource = context.coordinator
@@ -37,12 +37,13 @@ struct LibraryNavigationRow: NSViewRepresentable {
             let cell = NSTableCellView()
             let label = NSTextField(labelWithString: "All Tracks")
             label.font = InterfaceStyle.tableFont; label.translatesAutoresizingMaskIntoConstraints = false
-            let image = NSImageView(image: NSImage(systemSymbolName: "music.note.list", accessibilityDescription: nil)!)
+            let image = NSImageView(image: NSImage(systemSymbolName: "music.note", accessibilityDescription: nil)!)
+            image.contentTintColor = .controlAccentColor
             image.translatesAutoresizingMaskIntoConstraints = false
             cell.addSubview(label); cell.textField = label; cell.addSubview(image); cell.imageView = image
             NSLayoutConstraint.activate([
                 image.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 6),
-                image.widthAnchor.constraint(equalToConstant: 14), image.heightAnchor.constraint(equalToConstant: 14),
+                image.widthAnchor.constraint(equalToConstant: 16), image.heightAnchor.constraint(equalToConstant: 16),
                 image.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
                 label.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 28),
                 label.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -4),
@@ -69,7 +70,7 @@ struct PlaylistSidebar: NSViewRepresentable {
     func makeCoordinator()->Coordinator {Coordinator(self)}
     func makeNSView(context:Context)->NSScrollView {
         let scroll=NSScrollView(); let table=NSTableView()
-        table.setAccessibilityLabel("Playlists"); table.headerView=nil; table.style = .sourceList; table.rowHeight=30; table.backgroundColor = .clear
+        table.setAccessibilityLabel("Playlists"); table.headerView=nil; table.style = .sourceList; table.rowHeight=28; table.backgroundColor = .clear
         table.addTableColumn(NSTableColumn(identifier:NSUserInterfaceItemIdentifier("playlist")))
         table.delegate=context.coordinator; table.dataSource=context.coordinator; table.registerForDraggedTypes([TrackDrag.type])
         let menu=NSMenu(); menu.delegate=context.coordinator; table.menu=menu
@@ -96,8 +97,8 @@ struct PlaylistSidebar: NSViewRepresentable {
                 let label=NSTextField(labelWithString:""); label.translatesAutoresizingMaskIntoConstraints=false; cell.addSubview(label); cell.textField=label
                 NSLayoutConstraint.activate([label.leadingAnchor.constraint(equalTo:cell.leadingAnchor,constant:28),label.trailingAnchor.constraint(equalTo:cell.trailingAnchor,constant:-4),label.centerYAnchor.constraint(equalTo:cell.centerYAnchor)])
                 let icon=NSImageView(image:NSImage(systemSymbolName:"music.note.list",accessibilityDescription:nil)!)
-                icon.translatesAutoresizingMaskIntoConstraints=false; icon.contentTintColor = .secondaryLabelColor; cell.addSubview(icon); cell.imageView=icon
-                NSLayoutConstraint.activate([icon.leadingAnchor.constraint(equalTo:cell.leadingAnchor,constant:6),icon.widthAnchor.constraint(equalToConstant:14),icon.heightAnchor.constraint(equalToConstant:14),icon.centerYAnchor.constraint(equalTo:cell.centerYAnchor)])
+                icon.translatesAutoresizingMaskIntoConstraints=false; icon.contentTintColor = .controlAccentColor; cell.addSubview(icon); cell.imageView=icon
+                NSLayoutConstraint.activate([icon.leadingAnchor.constraint(equalTo:cell.leadingAnchor,constant:6),icon.widthAnchor.constraint(equalToConstant:16),icon.heightAnchor.constraint(equalToConstant:16),icon.centerYAnchor.constraint(equalTo:cell.centerYAnchor)])
                 label.font = InterfaceStyle.tableFont; label.lineBreakMode = .byTruncatingTail
             }
             cell.textField?.stringValue=parent.playlists[row].name; cell.toolTip=parent.playlists[row].name; cell.textField?.setAccessibilityLabel(parent.playlists[row].name); return cell

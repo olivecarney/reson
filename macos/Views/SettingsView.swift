@@ -12,6 +12,11 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             Form {
+                Section("Appearance") {
+                    Picker("Appearance", selection: $model.appearance) {
+                        ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
+                    }.pickerStyle(.segmented)
+                }
                 Section("Playback") {
                     Slider(value: Binding(get: { model.volume }, set: { model.setVolume($0) }), in: 0...1) { Text("App volume") }
                         .accessibilityValue("\(Int((model.volume * 100).rounded())) percent")
@@ -25,7 +30,7 @@ struct SettingsView: View {
                 }
             }.formStyle(.grouped).tabItem { Label("General", systemImage: "gearshape") }
             librarySettings.tabItem { Label("Library", systemImage: "music.note.list") }
-        }.frame(width: 640, height: 480).font(InterfaceStyle.body)
+        }.frame(width: 640, height: 480)
             .background { BackgroundDismissal { dismiss() } }
             .task { model.startLibrary(); await model.refreshSources() }
     }
@@ -34,7 +39,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("Your music library").font(.system(size: 18, weight: .medium))
+                    Text("Your Music Library").font(.title3.weight(.semibold))
                     Text("Music stays in its original folders. Rescan after adding or changing files.")
                         .font(.callout).foregroundStyle(.secondary)
                 }

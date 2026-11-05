@@ -6,7 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: PlayerModel?
     private var keyMonitor: Any?
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.appearance = NSAppearance(named: .darkAqua)
+        NSApp.appearance = model?.appearance.nsAppearance
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -37,7 +37,8 @@ struct ResonApp: App {
     var body: some Scene {
         Window("reson", id: "main") {
             ContentView(model: model)
-                .preferredColorScheme(.dark)
+                // NSApp.appearance also restyles AppKit tables, menus and sheets consistently.
+                .onChange(of: model.appearance, initial: true) { _, value in NSApp.appearance = value.nsAppearance }
                 .frame(minWidth: InterfaceStyle.windowMinimum.width, minHeight: InterfaceStyle.windowMinimum.height)
                 .onAppear { delegate.model = model; model.startLibrary() }
         }

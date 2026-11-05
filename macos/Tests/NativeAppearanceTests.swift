@@ -20,7 +20,8 @@ import SwiftUI
         var track = PlaybackSnapshot(); track.path = "/synthetic.wav"; track.duration = 61
         let coordinator = TrackTable(tracks: [track], selection: .constant(nil), play: { _ in }).makeCoordinator()
         let cell = try XCTUnwrap(coordinator.tableView(NSTableView(), viewFor: NSTableColumn(identifier: .init("duration")), row: 0) as? NSTableCellView)
-        XCTAssertEqual(cell.textField?.font, NSFont.monospacedDigitSystemFont(ofSize: 14, weight: .regular))
+        XCTAssertEqual(cell.textField?.font, InterfaceStyle.timeFont)
+        XCTAssertEqual(InterfaceStyle.timeFont.pointSize, NSFont.systemFontSize, "Tables use the standard body size")
         let title = try XCTUnwrap(coordinator.tableView(NSTableView(), viewFor: NSTableColumn(identifier: .init("title")), row: 0) as? NSTableCellView)
         XCTAssertFalse(title.textField!.font!.isFixedPitch)
     }
@@ -62,21 +63,18 @@ import SwiftUI
 }
 
 extension NativeAppearanceTests {
-    func testMaterialRemovesTranslucencyAndRestoresItWithoutStackingEffects() throws {
-        let surface = NativeMaterialSurface()
-        surface.frame = NSRect(x: 0, y: 0, width: 180, height: 300)
-        surface.configure(material: .sidebar, opaque: true)
-        let effect = try XCTUnwrap(surface.subviews.first as? NSVisualEffectView)
-        XCTAssertTrue(effect.isHidden, "The opaque fallback must remove the blur, not just paint beneath it")
-        XCTAssertNotNil(surface.layer?.backgroundColor)
-        surface.configure(material: .sidebar, opaque: false)
-        XCTAssertFalse(effect.isHidden)
-        XCTAssertNil(surface.layer?.backgroundColor)
-        XCTAssertEqual(effect.material, NSVisualEffectView.Material.sidebar)
-        XCTAssertEqual(effect.blendingMode, NSVisualEffectView.BlendingMode.behindWindow)
-        surface.configure(material: .titlebar, opaque: true)
-        XCTAssertTrue(effect.isHidden)
-        XCTAssertEqual(surface.subviews.count, 1)
-        XCTAssertEqual(effect.blendingMode, NSVisualEffectView.BlendingMode.withinWindow)
+    // The app follows the system by default; an explicit choice persists and maps to AppKit.
+    func testAppearancePreferenceDefaultsToSystemAndPersists() async throws {
+        let name="reson-test-\(UUID())"; let defaults=try XCTUnwrap(UserDefaults(suiteName:name)); defer {defaults.removePersistentDomain(forName:name)}
+        let model=PlayerModel(settings:defaults)
+        XCTAssertEqual(model.appearance, .system)
+        XCTAssertNil(model.appearance.nsAppearance, "System appearance must not pin an NSAppearance")
+        model.appearance = .light
+        await model.shutdown()
+        let reopened=PlayerModel(settings:defaults)
+        XCTAssertEqual(reopened.appearance, .light)
+        XCTAssertEqual(reopened.appearance.nsAppearance?.name, .aqua)
+        XCTAssertEqual(AppAppearance.dark.nsAppearance?.name, .darkAqua)
+        await reopened.shutdown()
     }
 }

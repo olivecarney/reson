@@ -12,11 +12,12 @@ final class ArtworkCell: NSTableCellView {
         artwork.imageScaling = .scaleProportionallyUpOrDown
         artwork.wantsLayer = true
         artwork.layer?.cornerRadius = 4
+        artwork.layer?.cornerCurve = .continuous
         artwork.layer?.masksToBounds = true
-        artwork.layer?.backgroundColor = NSColor.white.withAlphaComponent(0.045).cgColor
+        updatePlaceholderColor()
         addSubview(artwork); artwork.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            artwork.widthAnchor.constraint(equalToConstant: 28), artwork.heightAnchor.constraint(equalToConstant: 28),
+            artwork.widthAnchor.constraint(equalToConstant: 24), artwork.heightAnchor.constraint(equalToConstant: 24),
             artwork.centerXAnchor.constraint(equalTo: centerXAnchor), artwork.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }
@@ -38,6 +39,16 @@ final class ArtworkCell: NSTableCellView {
                 self.artwork.imageScaling = .scaleProportionallyUpOrDown
                 self.artwork.setAccessibilityLabel("Album artwork")
             }
+        }
+    }
+    // Layer colours are static CGColors; re-resolve the semantic fill when light/dark changes.
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updatePlaceholderColor()
+    }
+    private func updatePlaceholderColor() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            artwork.layer?.backgroundColor = NSColor.quaternarySystemFill.cgColor
         }
     }
     override func viewDidMoveToSuperview() {

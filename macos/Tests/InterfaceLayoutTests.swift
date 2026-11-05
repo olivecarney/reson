@@ -15,8 +15,10 @@ final class InterfaceLayoutTests: XCTestCase {
         model.tracks = [selected]; model.selectedPath = selected.path
         var playing = selected; playing.path = "/tmp/reson-layout-playing.flac"; playing.title = "Playing independently"; playing.format = "FLAC"
         model.playback = playing
-        let hosting = NSHostingView(rootView: ContentView(model: model).preferredColorScheme(.dark))
+        let hosting = NSHostingView(rootView: ContentView(model: model))
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 520), styleMask: [.titled, .resizable], backing: .buffered, defer: false)
+        // The app follows the system appearance; pin one so AppKit and SwiftUI render consistently.
+        window.appearance = NSAppearance(named: .darkAqua)
         window.contentView = hosting
         window.setContentSize(NSSize(width: 820, height: 520)); hosting.layoutSubtreeIfNeeded()
         XCTAssertLessThanOrEqual(window.contentMinSize.width, 820, "Header/transport must not force a wider window")
@@ -36,6 +38,9 @@ final class InterfaceLayoutTests: XCTestCase {
         save(hosting,name:"normal")
         window.setContentSize(NSSize(width:1600,height:1000));hosting.layoutSubtreeIfNeeded()
         save(hosting,name:"large")
+        window.appearance = NSAppearance(named: .aqua)
+        window.setContentSize(NSSize(width: 1180, height: 740)); hosting.layoutSubtreeIfNeeded()
+        save(hosting,name:"normal-light")
     }
     func testAccessibilityAppearanceAndEmptyQueueLayouts() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -21,22 +21,24 @@ struct TrackTable: NSViewRepresentable {
     var dataRevision: UInt64?
     var editingEnabled = true
     var focusRequest: UInt64 = 0
+    /// Space reserved beneath the last row for floating chrome, so rows scroll under the glass player.
+    var bottomInset: CGFloat = 0
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView(); let table = TrackListView()
-        table.style = .plain; table.rowHeight = 38; table.intercellSpacing = NSSize(width: 10, height: 0)
+        table.style = .inset; table.rowHeight = 30; table.intercellSpacing = NSSize(width: 10, height: 0)
         table.allowsMultipleSelection=true
         table.setAccessibilityLabel(sourceID == "queue" ? "Pending queue" : "Tracks")
         table.autosaveName = "ResonTracks-" + (sourceID == "library" ? "library" : "ordered")
         table.autosaveTableColumns = true
-        table.backgroundColor = .clear; table.usesAlternatingRowBackgroundColors = false
+        table.backgroundColor = .clear; table.usesAlternatingRowBackgroundColors = true
         table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
-        for (id,title,width) in [("art","",36.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("format","Format",65),("duration","Time",84)] {
+        for (id,title,width) in [("art","",32.0),("title","Title",210),("artist","Artist",130),("album","Album",130),("format","Format",65),("duration","Time",84)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             if id == "duration" {column.headerCell = TimeColumnHeaderCell(textCell:title)}
             column.headerCell.font = InterfaceStyle.tableHeaderFont
-            column.title = title; column.headerCell.alignment = (id == "duration") ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 36 : (id == "format" ? 55 : (id == "duration" ? 72 : 40)))
-            if id == "art" { column.maxWidth = 36; column.resizingMask = [] }
+            column.title = title; column.headerCell.alignment = (id == "duration") ? .right : .left; column.width = width; column.minWidth = id == "title" ? 120 : (id == "art" ? 32 : (id == "format" ? 55 : (id == "duration" ? 72 : 40)))
+            if id == "art" { column.maxWidth = 32; column.resizingMask = [] }
             if id != "art", sourceID=="library" { column.sortDescriptorPrototype = NSSortDescriptor(key: id, ascending: true) }
             table.addTableColumn(column)
         }
@@ -50,6 +52,11 @@ struct TrackTable: NSViewRepresentable {
         return scroll
     }
     func updateNSView(_ view: NSScrollView, context: Context) {
+        if view.contentInsets.bottom != bottomInset {
+            // The table sits within the safe area, so only the bottom edge needs a manual inset.
+            view.automaticallyAdjustsContentInsets = false
+            view.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: bottomInset, right: 0)
+        }
         context.coordinator.update(self)
     }
 

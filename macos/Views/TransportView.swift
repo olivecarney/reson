@@ -1,74 +1,143 @@
 import SwiftUI
+
+/// Floating Liquid Glass player, after IINA's on-screen controller: identity on the leading
+/// edge, transport centred, output on the trailing edge, and a full-width scrubber beneath.
 struct TransportView: View {
     @Bindable var model: PlayerModel
     @State private var details = false
+
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: 16) { trackIdentity; playbackControls; outputControls }
-                VStack(spacing: 8) {
-                    HStack { trackIdentity; outputControls }
-                    playbackControls
+                // Wide: three columns with the transport optically centred.
+                HStack(spacing: 12) {
+                    trackIdentity.frame(minWidth: 180, maxWidth: .infinity, alignment: .leading)
+                    playbackControls.fixedSize()
+                    outputControls.fixedSize().frame(minWidth: 180, maxWidth: .infinity, alignment: .trailing)
+                }
+                // Compact: identity and output share a row; transport sits centred below.
+                VStack(spacing: 6) {
+                    HStack(spacing: 8) { trackIdentity; Spacer(minLength: 4); outputControls.fixedSize() }
+                    playbackControls.fixedSize()
                 }
             }
-            HStack(spacing: 10) {
-                Text(timeLabel(model.timeline.display(model.playback))).frame(width:42,alignment:.trailing)
-                TimelineSlider(value:model.timeline.display(model.playback),duration:model.playback.duration,enabled:model.playback.canSeek,begin:model.beginScrub,update:model.scrub,finish:model.endScrub).disabled(!model.playback.canSeek).frame(height:16)
-                Text(timeLabel(model.playback.duration)).frame(width:42,alignment:.leading)
-            }.font(.system(size:12)).monospacedDigit().foregroundStyle(.secondary)
-        }.modifier(ChromeGlassGroup()).onAppear {model.refreshDevices()}.padding(.horizontal,16).padding(.vertical,10).background { NativeBarMaterial(material: .titlebar) }
+            HStack(spacing: 8) {
+                Text(timeLabel(model.timeline.display(model.playback))).frame(width: 40, alignment: .trailing)
+                TimelineSlider(value: model.timeline.display(model.playback), duration: model.playback.duration,
+                               enabled: model.playback.canSeek, begin: model.beginScrub, update: model.scrub, finish: model.endScrub)
+                    .disabled(!model.playback.canSeek).frame(height: 16)
+                Text(timeLabel(model.playback.duration)).frame(width: 40, alignment: .leading)
+            }
+            .font(.subheadline).monospacedDigit().foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 8)
+        .floatingGlass()
+        .onAppear { model.refreshDevices() }
     }
+
     private var trackIdentity: some View {
         HStack(spacing: 10) {
-            ArtworkView(path:model.playback.path, revision:model.artworkRevision).frame(width:36,height:36)
-            VStack(alignment:.leading,spacing:3) {
-                Text(model.playback.path.isEmpty ? "Ready to play" : model.playback.displayTitle).font(InterfaceStyle.body.weight(.medium)).lineLimit(1).help(model.playback.path.isEmpty ? "Ready to play" : model.playback.displayTitle)
-                Text(model.playback.path.isEmpty ? (model.canTogglePlayback ? "Play a selection or double-click a track" : "Open a file or import a music folder") : (model.playback.artist ?? model.playback.stateLabel)).font(.system(size:12)).foregroundStyle(.secondary).lineLimit(1)
-            }.frame(minWidth:100,maxWidth:.infinity,alignment:.leading)
-            if model.playback.state == 1 {ProgressView().controlSize(.small).accessibilityLabel("Loading audio")}
+            ArtworkView(path: model.playback.path, revision: model.artworkRevision)
+                .frame(width: 40, height: 40)
+                .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.playback.path.isEmpty ? "Not Playing" : model.playback.displayTitle)
+                    .font(.body.weight(.semibold)).lineLimit(1)
+                    .help(model.playback.path.isEmpty ? "Not Playing" : model.playback.displayTitle)
+                Text(identityDetail).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+            }
+            if model.playback.state == 1 { ProgressView().controlSize(.small).accessibilityLabel("Loading audio") }
+        }
+        .frame(minWidth: 100, alignment: .leading)
+    }
+
+    private var identityDetail: String {
+        if model.playback.path.isEmpty {
+            return model.canTogglePlayback ? "Double-click a track to play" : "Open a file or import a folder"
+        }
+        return [model.playback.artist, model.playback.album].compactMap { $0 }.joined(separator: " — ")
+            .nonEmpty ?? model.playback.stateLabel
+    }
+
+    private var playbackControls: some View {
+        HStack(spacing: 6) {
+            transportButton("backward.fill", "Previous Track", "Previous Track (⌥⌘P)", enabled: model.canPrevious, action: model.previousTrack)
+                .font(.title3)
+            transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play",
+                            "Play / Pause (Space)", enabled: model.canTogglePlayback, action: model.togglePlayback, size: 38)
+                .font(.system(size: 24))
+                .contentTransition(.symbolEffect(.replace))
+            transportButton("forward.fill", "Next Track", "Next Track (⌥⌘N)", enabled: model.canNext, action: model.nextTrack)
+                .font(.title3)
+            transportButton("stop.fill", "Stop", "Stop playback", enabled: !model.playback.path.isEmpty, action: model.stop)
+                .font(.callout).foregroundStyle(.secondary)
         }
     }
-    private var playbackControls: some View {
-        HStack(spacing: 4) {
-            transportButton("backward.end.fill", "Previous Track", "Previous Track (⌥⌘P)", enabled:model.canPrevious, action:model.previousTrack)
-            transportButton(model.playback.state == 2 ? "pause.fill" : "play.fill", model.playback.state == 2 ? "Pause" : "Play", "Play / Pause (Space)", enabled:model.canTogglePlayback, action:model.togglePlayback)
-                .font(.system(size: 17, weight: .semibold)).frame(width: 38, height: 34)
-            transportButton("stop.fill", "Stop", "Stop playback", enabled:!model.playback.path.isEmpty, action:model.stop)
-            transportButton("forward.end.fill", "Next Track", "Next Track (⌥⌘N)", enabled:model.canNext, action:model.nextTrack)
-        }.padding(.horizontal,6).padding(.vertical,2).modifier(ControlGlass())
-    }
+
     private var outputControls: some View {
-        HStack(spacing: 8) {
-            transportButton(model.muted || model.volume == 0 ? "speaker.slash.fill":"speaker.wave.2.fill",model.muted || model.volume == 0 ? "Unmute":"Mute","Mute / Unmute",enabled:true,action:model.toggleMute)
-                .accessibilityValue(model.muted || model.volume == 0 ? "Muted":"\(Int((model.volume*100).rounded())) percent")
-            Slider(value:Binding(get:{model.volume},set:{model.setVolume($0)}),in:0...1).frame(width:85).controlSize(.small).accessibilityLabel("App volume")
+        HStack(spacing: 6) {
+            transportButton(volumeSymbol, isSilent ? "Unmute" : "Mute", "Mute / Unmute", enabled: true, action: model.toggleMute)
+                .foregroundStyle(.secondary)
+                .contentTransition(.symbolEffect(.replace))
+                .accessibilityValue(isSilent ? "Muted" : "\(Int((model.volume * 100).rounded())) percent")
+            Slider(value: Binding(get: { model.volume }, set: { model.setVolume($0) }), in: 0...1)
+                .frame(width: 80).controlSize(.mini).accessibilityLabel("App volume")
             Menu {
-                Button(model.playback.preferredDevice == nil ? "✓ System Default":"System Default") {model.selectOutput(nil)}
-                ForEach(model.playback.devices) {device in Button {model.selectOutput(device.id)} label:{Text((model.playback.preferredDevice == device.id ? "✓ ":"")+device.name)}}
+                Picker("Output", selection: Binding(get: { model.playback.preferredDevice }, set: { model.selectOutput($0) })) {
+                    Text("System Default").tag(String?.none)
+                    ForEach(model.playback.devices) { device in Text(device.name).tag(Optional(device.id)) }
+                }.pickerStyle(.inline)
                 Divider()
-                Button("Refresh Devices") {model.refreshDevices()}
-                Button("Retry Selected Output") {model.selectOutput(model.playback.preferredDevice)}
-            } label:{Image(systemName:"hifispeaker")}.menuStyle(.borderlessButton).frame(width:28).help(model.outputSelection.label).accessibilityLabel("Output device: \(model.outputSelection.label)")
-            transportButton("info.circle","Playback audio details","Source and output audio details",enabled:true) {model.refreshDevices();details.toggle()}
-                .popover(isPresented:$details) {audioDetails.padding(16).frame(width:320)}
-        }.padding(.horizontal, 4)
+                Button("Refresh Devices") { model.refreshDevices() }
+                Button("Retry Selected Output") { model.selectOutput(model.playback.preferredDevice) }
+            } label: {
+                Image(systemName: "hifispeaker")
+            }
+            .menuStyle(.button).buttonStyle(.borderless).menuIndicator(.hidden).foregroundStyle(.secondary)
+            .frame(width: InterfaceStyle.controlSize)
+            .help(model.outputSelection.label).accessibilityLabel("Output device: \(model.outputSelection.label)")
+            transportButton("info.circle", "Playback audio details", "Source and output audio details", enabled: true) {
+                model.refreshDevices(); details.toggle()
+            }
+            .foregroundStyle(.secondary)
+            .popover(isPresented: $details, arrowEdge: .top) { audioDetails.padding(16).frame(width: 320) }
+        }
     }
-    private func transportButton(_ symbol:String, _ label:String, _ help:String, enabled:Bool, action:@escaping ()->Void)->some View {
-        Button(action:action) {Image(systemName:symbol).frame(width:InterfaceStyle.controlSize,height:InterfaceStyle.controlSize).contentShape(Rectangle())}
-            .buttonStyle(.borderless).accessibilityLabel(label).help(help).disabled(!enabled)
+
+    private var isSilent: Bool { model.muted || model.volume == 0 }
+    private var volumeSymbol: String {
+        if isSilent { return "speaker.slash.fill" }
+        return model.volume < 0.34 ? "speaker.wave.1.fill" : (model.volume < 0.67 ? "speaker.wave.2.fill" : "speaker.wave.3.fill")
     }
+
+    private func transportButton(_ symbol: String, _ label: String, _ help: String, enabled: Bool,
+                                 action: @escaping () -> Void, size: CGFloat = InterfaceStyle.controlSize) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).frame(width: size, height: size).contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless).accessibilityLabel(label).help(help).disabled(!enabled)
+    }
+
     private var audioDetails: some View {
-        VStack(alignment:.leading,spacing:8) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(model.outputSelection.label).font(.headline)
-            Text("Source: \(model.playback.format) · \(model.playback.rate) Hz · \(model.playback.channels) channels · \(model.playback.bits == 0 ? "unknown depth":"\(model.playback.bits)-bit")")
-            if let rate=model.playback.outputRate, let channels=model.playback.outputChannels {
+            Text("Source: \(model.playback.format) · \(model.playback.rate) Hz · \(model.playback.channels) channels · \(model.playback.bits == 0 ? "unknown depth" : "\(model.playback.bits)-bit")")
+            if let rate = model.playback.outputRate, let channels = model.playback.outputChannels {
                 Text("Output stream: \(rate) Hz · \(channels) channels · \(model.playback.outputFormat ?? "unknown format")")
-                Text(model.playback.convertsOutput ? "Rate or channel conversion is active. Floating-point mixing and CoreAudio conversion may also apply.":"Floating-point mixing and CoreAudio conversion may apply.").foregroundStyle(.secondary)
-            } else {Text("No active output stream").foregroundStyle(.secondary)}
+                Text(model.playback.convertsOutput ? "Rate or channel conversion is active. Floating-point mixing and CoreAudio conversion may also apply." : "Floating-point mixing and CoreAudio conversion may apply.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("No active output stream").foregroundStyle(.secondary)
+            }
             Text(model.playback.stateLabel)
-            if let error=model.playback.operationError {Text(error).foregroundStyle(.orange)}
-            if let error=model.playback.error {Text(error).foregroundStyle(.orange)}
-            if let notice=model.playback.outputNotice {Text(notice).foregroundStyle(.secondary)}
-        }.font(.system(size:12)).textSelection(.enabled)
+            if let error = model.playback.operationError { Text(error).foregroundStyle(.orange) }
+            if let error = model.playback.error { Text(error).foregroundStyle(.orange) }
+            if let notice = model.playback.outputNotice { Text(notice).foregroundStyle(.secondary) }
+        }
+        .font(.callout).textSelection(.enabled)
     }
+}
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

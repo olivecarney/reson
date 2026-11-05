@@ -4,121 +4,113 @@ import AppKit
 struct ContentView: View {
     @Bindable var model: PlayerModel
     @FocusState private var searchFocused: Bool
+    /// Height of the floating player + banners, so the list can scroll beneath them.
+    @State private var chromeHeight: CGFloat = 0
+
     var body: some View {
-        VStack(spacing: 0) {
-            HSplitView {
-                if model.showSidebar { sidebar.frame(minWidth: InterfaceStyle.sidebarMinimum, idealWidth: 180, maxWidth: 200) }
-                VStack(spacing: 0) {
-                    HStack(spacing: 16) {
-                        libraryHeading
-                        Spacer(minLength: 8)
-                        if model.selectedPlaylistID == nil {
-                            searchField
-                        }
-                    }.padding(InterfaceStyle.panelPadding)
-                    Divider()
-                    if model.importBusy || !model.importSummary.isEmpty {
-                        HStack {
-                            if model.importBusy { ProgressView().controlSize(.small) }
-                            Text(model.importSummary.isEmpty ? "Indexing folder…" : model.importSummary).font(.system(size: 12))
-                            Spacer()
-                            if model.importBusy { Button("Cancel") { model.cancelImport() } }
-                            else {
-                                Button("Rescan") { model.rescanFolders() }
-                                Button { model.importSummary = "" } label: { Image(systemName: "xmark") }
-                                    .buttonStyle(.borderless).help("Dismiss import summary").accessibilityLabel("Dismiss import summary")
-                            }
-                        }.padding(.horizontal, 24).padding(.vertical, 8)
-                    }
-                    playlistTable.overlay {
-                        if model.tracks.isEmpty {
-                            libraryEmptyState.allowsHitTesting(model.selectedPlaylistID == nil && !model.libraryLoading)
-                        }
-                    }
-                }.frame(minWidth: 280).background(InterfaceStyle.background)
-                if model.showInspector { InspectorView(track: model.selected, artworkRevision: model.artworkRevision).frame(minWidth: InterfaceStyle.inspectorMinimum, idealWidth: 240, maxWidth: 280) }
-            }
-            if let notice=model.notice {
-                HStack {Image(systemName:"info.circle");Text(notice).font(.system(size:12));Spacer();Button("Dismiss") {model.notice=nil}}.padding(12).foregroundStyle(.secondary)
-            }
-            if let error = model.message ?? model.playback.operationError ?? model.playback.error {
-                HStack(alignment: .top) {
-                    Image(systemName: "exclamationmark.circle")
-                    Text(error).font(.system(size: 12)).textSelection(.enabled)
-                    Spacer()
-                    if model.playback.failureKind == "output" {Button("Retry Output") {model.selectOutput(model.playback.preferredDevice)}}
-                    else if model.playback.failureKind == "file" {Button("Open File…") {model.openFile()}}
+        NavigationSplitView(columnVisibility: sidebarVisibility) {
+            sidebar
+                .navigationSplitViewColumnWidth(min: InterfaceStyle.sidebarMinimum, ideal: 200, max: 280)
+        } detail: {
+            detail
+                .frame(minWidth: InterfaceStyle.detailMinimum)
+                .inspector(isPresented: $model.showInspector) {
+                    InspectorView(track: model.selected, artworkRevision: model.artworkRevision)
+                        .inspectorColumnWidth(min: InterfaceStyle.inspectorMinimum, ideal: 260, max: 340)
                 }
-                    .padding(12).background(Color.orange.opacity(0.12)).foregroundStyle(.orange)
-            }
-            if let outputNotice = model.playback.outputNotice {
-                HStack(alignment: .top) {Image(systemName: "info.circle"); Text(outputNotice).font(.system(size: 12)).textSelection(.enabled); Spacer()}
-                    .padding(12).foregroundStyle(.secondary)
-            }
-            Divider()
-            TransportView(model: model)
         }
-        .font(InterfaceStyle.body)
+        .navigationTitle(model.listTitle)
+        .navigationSubtitle(subtitle)
+        .searchable(text: searchText, placement: .toolbar, prompt: "Search Library")
+        .modifier(SearchFocus(focused: $searchFocused))
+        .onSubmit(of: .search) { searchFocused = false; model.tableFocusRequest &+= 1 }
         .onChange(of: model.searchFocusRequest) { _, _ in searchFocused = true }
-        .sheet(isPresented:$model.showQueue) {
-            QueueView(model:model)
+        .sheet(isPresented: $model.showQueue) {
+            QueueView(model: model)
                 .background { BackgroundDismissal { model.showQueue = false } }
         }
-        .toolbar {
-            ToolbarItem(placement: .navigation) {
-                Button { model.showSidebar.toggle() } label: { Image(systemName: "sidebar.left") }
-                    .accessibilityLabel("Toggle sidebar").accessibilityValue(model.showSidebar ? "Shown" : "Hidden").help("Toggle sidebar (⌃⌘S)")
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                if model.selectedPlaylistID != nil {
-                    Button("Export M3U8…") { model.exportM3U8() }.disabled(model.playlistBusy)
-                }
-                Button { model.importFolder() } label: { Label("Import Folder", systemImage: "folder.badge.plus") }
-                    .disabled(model.importBusy).help("Import Folder (⇧⌘O)")
-                Button { model.openFile() } label: { Label("Open File", systemImage: "doc.badge.plus") }.help("Open File (⌘O)")
-                Button { model.showQueue = true } label: { Label("Show Queue", systemImage: "list.bullet") }.help("Show Queue (⌘J)")
-            }
-            ToolbarItem(placement: .automatic) {
-                Button { model.showInspector.toggle() } label: { Label("Toggle inspector", systemImage: "sidebar.right") }
-                    .accessibilityValue(model.showInspector ? "Shown" : "Hidden").help("Toggle inspector (⌥⌘I)")
-            }
-        }
+        .toolbar { toolbar }
     }
-    private var searchField: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-            TextField("Search library", text: $model.search)
-                .focused($searchFocused).textFieldStyle(.plain).accessibilityLabel("Search library")
-                .onSubmit { searchFocused = false; model.tableFocusRequest &+= 1 }
-                .onExitCommand {
-                    if model.search.isEmpty { searchFocused = false }
-                    else { model.search = "" }
+
+    // MARK: Detail
+
+    private var detail: some View {
+        playlistTable
+            .overlay {
+                if model.tracks.isEmpty {
+                    libraryEmptyState
+                        .padding(.bottom, chromeHeight)
+                        .allowsHitTesting(model.selectedPlaylistID == nil && !model.libraryLoading)
                 }
-            if !model.search.isEmpty {
-                Button { model.search = ""; searchFocused = true } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                    .buttonStyle(.plain).accessibilityLabel("Clear search").help("Clear search")
             }
-        }.font(.system(size: 12)).padding(.horizontal, 8).padding(.vertical, 6)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 7))
-            .overlay { RoundedRectangle(cornerRadius: 7).strokeBorder(searchFocused ? Color.accentColor : Color.primary.opacity(0.12), lineWidth: 1) }
-            .frame(minWidth: 100, idealWidth: 180, maxWidth: 240)
+            .overlay(alignment: .bottom) {
+                floatingChrome
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { chromeHeight = $0 }
+            }
+    }
+
+    /// IINA-style floating controller: status cards stack above one glass player panel.
+    private var floatingChrome: some View {
+        VStack(spacing: 8) {
+            if model.importBusy || !model.importSummary.isEmpty {
+                StatusBanner(symbol: "checkmark.circle", text: model.importSummary.isEmpty ? "Indexing folder…" : model.importSummary,
+                             progress: model.importBusy) {
+                    if model.importBusy {
+                        Button("Cancel") { model.cancelImport() }
+                    } else {
+                        Button("Rescan") { model.rescanFolders() }
+                        Button { model.importSummary = "" } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.borderless).help("Dismiss import summary").accessibilityLabel("Dismiss import summary")
+                    }
+                }
+            }
+            if let notice = model.notice {
+                StatusBanner(symbol: "info.circle", text: notice) {
+                    Button("Dismiss") { model.notice = nil }
+                }
+            }
+            if let error = model.message ?? model.playback.operationError ?? model.playback.error {
+                StatusBanner(symbol: "exclamationmark.triangle.fill", text: error, tint: .orange) {
+                    if model.playback.failureKind == "output" {
+                        Button("Retry Output") { model.selectOutput(model.playback.preferredDevice) }
+                    } else if model.playback.failureKind == "file" {
+                        Button("Open File…") { model.openFile() }
+                    }
+                }
+            }
+            if let outputNotice = model.playback.outputNotice {
+                StatusBanner(symbol: "waveform", text: outputNotice) { EmptyView() }
+            }
+            TransportView(model: model)
+        }
+        .frame(maxWidth: 760)
+        .padding(.horizontal, InterfaceStyle.floatingMargin)
+        .padding(.bottom, InterfaceStyle.floatingMargin)
+        .animation(.smooth(duration: 0.25), value: bannerState)
+    }
+
+    private var bannerState: [Bool] {
+        [model.importBusy || !model.importSummary.isEmpty, model.notice != nil,
+         (model.message ?? model.playback.operationError ?? model.playback.error) != nil, model.playback.outputNotice != nil]
     }
 
     @ViewBuilder private var libraryEmptyState: some View {
         if model.libraryLoading {
-            VStack(spacing: 12) { ProgressView(); Text("Loading tracks…").foregroundStyle(.secondary) }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ProgressView("Loading Tracks…").frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if model.selectedPlaylistID != nil {
+            EmptyState(symbol: "music.note.list", title: "This Playlist Is Empty",
+                       detail: "Drag tracks onto this playlist, or use Add to Playlist from a track’s menu.")
+        } else if !model.search.isEmpty {
+            ContentUnavailableView.search(text: model.search)
         } else {
-            VStack(spacing: 16) {
-                EmptyState(symbol: model.search.isEmpty ? "music.note.list" : "magnifyingglass",
-                           title: model.selectedPlaylistID != nil ? "This playlist is empty" : (model.search.isEmpty ? "Your music, right here" : "No matching tracks"),
-                           detail: model.selectedPlaylistID != nil ? "Drag tracks onto this playlist, or use Add to Playlist from a track’s menu." : (model.search.isEmpty ? "Import a folder to build your library, or open a file to start listening." : "Try a different title, artist, album or filename."))
-                if model.selectedPlaylistID == nil {
-                    if model.search.isEmpty {
-                        HStack { Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy); Button("Open File…") { model.openFile() } }
-                    } else { Button("Clear Search") { model.search = ""; searchFocused = true } }
+            EmptyState(symbol: "music.note.house", title: "Your Music, Right Here",
+                       detail: "Import a folder to build your library, or open a file to start listening.") {
+                HStack {
+                    Button("Import Folder…") { model.importFolder() }.disabled(model.importBusy)
+                        .buttonStyle(.borderedProminent)
+                    Button("Open File…") { model.openFile() }
                 }
-            }.padding(24).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 
@@ -130,37 +122,98 @@ struct ContentView: View {
                           sourceID:model.selectedPlaylistID.map { "playlist:\($0)" } ?? "library",move:move,insert:insert,remove:remove,
                           playNext:{model.enqueue($0,next:true)},addQueue:{model.enqueue($0,next:false)},showQueue:{model.showQueue=true},
                           playlists:model.playlists,addToPlaylist:{model.addTracks($0,to:$1)},playingID:model.playingRowID,dataRevision:model.tableRevision,
-                          editingEnabled:!model.playlistBusy && !model.libraryLoading && !model.libraryManagementBusy && !model.importBusy,focusRequest:model.tableFocusRequest)
+                          editingEnabled:!model.playlistBusy && !model.libraryLoading && !model.libraryManagementBusy && !model.importBusy,focusRequest:model.tableFocusRequest,
+                          bottomInset:chromeHeight + InterfaceStyle.floatingMargin)
     }
-    private var libraryHeading: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(model.listTitle).font(InterfaceStyle.heading).lineLimit(1)
-            HStack(spacing: 6) {
-                if model.libraryLoading { ProgressView().controlSize(.mini).accessibilityLabel("Updating tracks") }
-                Text(model.libraryLoading ? "Updating…" : "\(model.tracks.count) \(model.search.isEmpty ? (model.tracks.count == 1 ? "track" : "tracks") : (model.tracks.count == 1 ? "result" : "results"))")
-                    .monospacedDigit()
-            }.font(.system(size: 12)).foregroundStyle(.secondary)
+
+    // MARK: Window chrome
+
+    private var sidebarVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(get: { model.showSidebar ? .all : .detailOnly },
+                set: { model.showSidebar = $0 != .detailOnly })
+    }
+
+    /// Search is global, as in Music: typing while a playlist is open returns to the library.
+    private var searchText: Binding<String> {
+        Binding(get: { model.search }, set: { text in
+            if !text.isEmpty, model.selectedPlaylistID != nil { model.selectPlaylist(nil) }
+            model.search = text
+        })
+    }
+
+    private var subtitle: String {
+        if model.libraryLoading { return "Updating…" }
+        let count = model.tracks.count
+        let noun = model.search.isEmpty ? (count == 1 ? "track" : "tracks") : (count == 1 ? "result" : "results")
+        return "\(count.formatted()) \(noun)"
+    }
+
+    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button { model.importFolder() } label: { Label("Import Folder", systemImage: "folder.badge.plus") }
+                .disabled(model.importBusy).help("Import Folder (⇧⌘O)")
+            Button { model.openFile() } label: { Label("Open File", systemImage: "doc.badge.plus") }.help("Open File (⌘O)")
+            if model.selectedPlaylistID != nil {
+                Button { model.exportM3U8() } label: { Label("Export M3U8", systemImage: "square.and.arrow.up") }
+                    .disabled(model.playlistBusy).help("Export Playlist as M3U8 (⇧⌘E)")
+            }
+        }
+        ToolbarItemGroup(placement: .primaryAction) {
+            Button { model.showQueue = true } label: { Label("Show Queue", systemImage: "list.bullet") }.help("Show Queue (⌘J)")
+            Button { model.showInspector.toggle() } label: { Label("Toggle Inspector", systemImage: "info.circle") }
+                .accessibilityValue(model.showInspector ? "Shown" : "Hidden").help("Toggle Inspector (⌥⌘I)")
         }
     }
+
+    // MARK: Sidebar
+
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Library").font(.caption).foregroundStyle(.secondary).padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 8)
+            sectionHeader("Library").padding(.top, 8)
             LibraryNavigationRow(selected: model.selectedPlaylistID == nil) { model.selectPlaylist(nil) }
-                .frame(height: 44).padding(.horizontal, 6)
-            HStack {Text("Playlists").font(.caption).foregroundStyle(.secondary); Spacer(); Button {model.promptPlaylist()} label:{Image(systemName:"plus").frame(width:16,height:18)}.buttonStyle(.borderless).help("Create Playlist (⌘N)").accessibilityLabel("Create Playlist").disabled(model.playlistBusy)}.padding(.horizontal,20).padding(.top,18).padding(.bottom,8)
-            if model.playlists.isEmpty {Text("No playlists").font(.caption).foregroundStyle(.secondary).padding(.horizontal,20).padding(.vertical,8)}
-            PlaylistSidebar(playlists:model.playlists,selection:model.selectedPlaylistID,select:{model.selectPlaylist($0)},rename:{model.promptPlaylist($0)},delete:model.confirmDeletePlaylist,export:{model.exportM3U8($0)},add:{model.insertTrackIDs($0,to:$1)},editingEnabled:!model.playlistBusy).padding(.horizontal,6)
-            Divider().padding(.horizontal, 12)
+                .frame(height: 36).padding(.horizontal, 10)
+            HStack {
+                sectionHeader("Playlists")
+                Spacer()
+                Button { model.promptPlaylist() } label: { Image(systemName: "plus") }
+                    .buttonStyle(.borderless).foregroundStyle(.secondary)
+                    .help("Create Playlist (⌘N)").accessibilityLabel("Create Playlist").disabled(model.playlistBusy)
+                    .padding(.trailing, 18).padding(.top, 14)
+            }
+            if model.playlists.isEmpty {
+                Text("No Playlists").font(.callout).foregroundStyle(.tertiary).padding(.horizontal, 20).padding(.vertical, 6)
+            }
+            PlaylistSidebar(playlists:model.playlists,selection:model.selectedPlaylistID,select:{model.selectPlaylist($0)},rename:{model.promptPlaylist($0)},delete:model.confirmDeletePlaylist,export:{model.exportM3U8($0)},add:{model.insertTrackIDs($0,to:$1)},editingEnabled:!model.playlistBusy)
+                .padding(.horizontal, 10)
             Button { model.showQueue = true } label: {
                 HStack(spacing: 8) {
-                    Image(systemName: "list.bullet")
-                    Text("Queue").lineLimit(1)
+                    Image(systemName: "list.bullet").foregroundStyle(.tint).frame(width: 16)
+                    Text("Up Next").lineLimit(1)
                     Spacer(minLength: 4)
-                    Text("\(model.session.queue.count)").font(.caption).monospacedDigit().foregroundStyle(.secondary)
-                }.padding(.horizontal, 12).padding(.vertical, 10).contentShape(Rectangle())
-            }.buttonStyle(.plain).padding(6).help("Play Queue (⌘J)")
-                .accessibilityLabel("Play Queue, \(model.session.queue.count) pending tracks")
+                    if !model.session.queue.isEmpty {
+                        Text(model.session.queue.count.formatted()).font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }.padding(.horizontal, 10).padding(.vertical, 7).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain).padding(.horizontal, 10).padding(.bottom, 10).help("Play Queue (⌘J)")
+            .accessibilityLabel("Play Queue, \(model.session.queue.count) pending tracks")
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
 
-        }.frame(maxHeight: .infinity).background { NativeBarMaterial(material: .sidebar) }
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+            .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 4)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// `searchFocused` is macOS 15+; on macOS 14 ⌘F falls back to the toolbar's own focus handling.
+private struct SearchFocus: ViewModifier {
+    var focused: FocusState<Bool>.Binding
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) { content.searchFocused(focused) } else { content }
     }
 }

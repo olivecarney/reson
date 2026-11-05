@@ -27,7 +27,7 @@ Folder imports and playlists persist between launches. Select **File → Rescan 
 
 ## Settings and library removal
 
-Open **reson → Settings…** with **⌘,**. General contains playback volume, mute and version information. Library lists registered folders, offers Add Folder, Remove Folder and Rescan Folders, and shows scan progress and cancellation. **reson → About reson** opens the standard macOS About panel.
+Open **reson → Settings…** with **⌘,**. General contains appearance (System, Light or Dark; reson follows the system by default), playback volume, mute and version information. Library lists registered folders, offers Add Folder, Remove Folder and Rescan Folders, and shows scan progress and cancellation. **reson → About reson** opens the standard macOS About panel.
 
 Select one or more indexed tracks in All Tracks (up to 1,000 at a time), right-click and choose **Remove from Library…**, then confirm. Only database records are removed; original files stay on disk. Current playback and queued sources continue independently. Playlist entries remain in their original order and show Missing until restored.
 
@@ -39,9 +39,9 @@ AppleDouble `._*` sidecars, `.DS_Store` and `__MACOSX` directories are ignored b
 
 ## Browse and play
 
-Search the library with **⌘F**. Search covers titles, artists, albums, genre and file paths. Click column headers to sort. Clear the search with its × button or Escape; press Return in search to move keyboard focus to the results. Matching of non-ASCII text is limited by SQLite's case-insensitive comparison rules.
+Search the library from the toolbar search field or with **⌘F** (macOS 15+). Search covers titles, artists, albums, genre and file paths; typing while a playlist is open returns to All Tracks, as in Music. Click column headers to sort. Clear the search with its × button or Escape; press Return in search to move keyboard focus to the results. Matching of non-ASCII text is limited by SQLite's case-insensitive comparison rules.
 
-Double-click a track, select it and press **Return**, or choose **Play** from its context menu. Missing tracks cannot be played. The inspector follows your selection; the playback bar follows the currently playing track. These can show different tracks. Track Details groups tags and audio properties and offers Reveal in Finder and Copy File Path. BPM and key are shown here instead of in the track table.
+Double-click a track, select it and press **Return**, or choose **Play** from its context menu. Missing tracks cannot be played. The inspector (toolbar ⓘ or **⌥⌘I**) follows your selection; the floating player at the bottom of the list follows the currently playing track. These can show different tracks. The inspector groups tags and audio properties and offers Show in Finder and Copy File Path. BPM and key are shown here instead of in the track table.
 
 Artwork comes from embedded FLAC pictures or supported WAV/MP3 ID3 APIC tags. reson does not fetch covers online. Unsupported or missing images show a placeholder. Rescan after replacing embedded artwork.
 
@@ -61,7 +61,7 @@ Create a playlist with **⌘N**. Use its context menu or the Playlists menu to r
 
 Select tracks and use drag/drop or the context menu to add them to a playlist. Reorder playlist or queue entries with **⌥⌘↑** and **⌥⌘↓**; **Delete** removes selected entries from that list.
 
-**Play Next** puts tracks ahead of normal sequence playback. **Add to Queue** appends them. Open the queue with **⌘J** to inspect, reorder, remove or clear pending entries. Click the main window behind Queue to dismiss it, or press Escape. The queue is temporary and starts empty after relaunch; playlists are saved.
+**Play Next** puts tracks ahead of normal sequence playback. **Add to Queue** appends them. Open Up Next from the sidebar, the toolbar or **⌘J** to inspect, reorder, remove or clear pending entries. Click the main window behind Up Next to dismiss it, or press Escape. The queue is temporary and starts empty after relaunch; playlists are saved.
 
 Use **⇧⌘I** to import a local UTF-8 M3U8 playlist and **⇧⌘E** to export the selected playlist. Playlist exchange refers to local files; it does not copy audio or stream remote URLs.
 

@@ -1,86 +1,120 @@
 import SwiftUI
 import AppKit
 
+/// Trailing inspector in the style of Finder's Get Info: artwork and identity on top, then
+/// grouped cards that wrap long values and scroll within compact windows.
 struct InspectorView: View {
     let track: PlaybackSnapshot?
     var artworkRevision: UInt64 = 0
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("Track Details").font(.system(size: 12, weight: .medium))
-                Spacer()
-            }.padding(InterfaceStyle.panelPadding)
-            Divider()
-            if let track {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ArtworkView(path: track.path, pixels: 384, revision: artworkRevision)
-                            .frame(width: 160, height: 160).frame(maxWidth: .infinity)
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(track.displayTitle).font(.system(size: 16, weight: .medium))
-                                .lineLimit(3).textSelection(.enabled).help(track.displayTitle)
-                            Text(track.artist ?? "Unknown artist").font(InterfaceStyle.body)
-                                .foregroundStyle(.secondary).lineLimit(2).textSelection(.enabled)
-                        }
-                        if track.missing {
-                            Label("File unavailable. Reconnect its drive or restore it, then rescan.", systemImage: "exclamationmark.triangle")
-                                .font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                        }
-                        metadataSection("Music") {
-                            row("Album", track.album ?? "Not tagged")
-                            row("Genre", track.genre ?? "Not tagged")
-                            row("BPM", track.bpm.map { String(format: "%g", $0) } ?? "Not tagged")
-                            row("Key", track.key ?? "Not tagged")
-                        }
-                        metadataSection("Audio") {
-                            row("Format", track.format.isEmpty ? "Unknown" : track.format)
-                            row("Duration", timeLabel(track.duration))
-                            row("Sample rate", track.rate == 0 ? "Unknown" : String(format: "%.1f kHz", Double(track.rate) / 1000))
-                            row("Bit depth", track.bits == 0 ? "Unknown" : "\(track.bits)-bit")
-                            row("Channels", track.channels == 0 ? "Unknown" : "\(track.channels)")
-                        }
-                        metadataSection("File") {
-                            let url = URL(fileURLWithPath: track.path)
-                            Text(url.lastPathComponent).font(.system(size: 12)).lineLimit(2)
-                                .textSelection(.enabled).help(track.path)
-                            Text((url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath)
-                                .font(.caption).foregroundStyle(.secondary).lineLimit(3)
-                                .textSelection(.enabled).help(track.path)
-                            HStack(spacing: 10) {
-                                Button { NSWorkspace.shared.activateFileViewerSelecting([url]) } label: {
-                                    Label("Reveal", systemImage: "folder")
-                                }.disabled(track.missing).help("Reveal in Finder")
-                                Button {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(track.path, forType: .string)
-                                } label: { Image(systemName: "doc.on.doc") }
-                                    .accessibilityLabel("Copy file path").help("Copy file path")
-                            }.controlSize(.small)
-                        }
-                    }.padding(InterfaceStyle.panelPadding)
+        if let track {
+            ScrollView {
+                VStack(spacing: 16) {
+                    identity(track)
+                    section(nil, rows: [
+                        ("Album", track.album ?? "Not Tagged"),
+                        ("Genre", track.genre ?? "Not Tagged"),
+                        ("BPM", track.bpm.map { String(format: "%g", $0) } ?? "Not Tagged"),
+                        ("Key", track.key ?? "Not Tagged"),
+                    ])
+                    section("Audio", rows: [
+                        ("Format", track.format.isEmpty ? "Unknown" : track.format),
+                        ("Duration", timeLabel(track.duration)),
+                        ("Sample Rate", track.rate == 0 ? "Unknown" : String(format: "%.1f kHz", Double(track.rate) / 1000)),
+                        ("Bit Depth", track.bits == 0 ? "Unknown" : "\(track.bits)-bit"),
+                        ("Channels", track.channels == 0 ? "Unknown" : channelLabel(track.channels)),
+                    ])
+                    file(track)
                 }
-            } else {
-                Spacer()
-                EmptyState(symbol: "info.circle", title: "Track details", detail: "Select a track to see its artwork, tags and audio information.")
-                Spacer()
+                .padding(16)
             }
-        }.background(Color(nsColor: .windowBackgroundColor))
+        } else {
+            EmptyState(symbol: "info.circle", title: "No Selection",
+                       detail: "Select a track to see its artwork, tags and audio details.")
+        }
     }
 
-    private func metadataSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Divider()
-            Text(title).font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            content()
+    /// A grouped card like System Settings / Get Info, with hairline separators between rows.
+    private func section<Footer: View>(_ title: String?, rows: [(String, String)], help: String? = nil,
+                                       @ViewBuilder footer: () -> Footer = { EmptyView() }) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let title {
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.secondary)
+                    .padding(.leading, 4).accessibilityAddTraits(.isHeader)
+            }
+            GroupBox {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { index, item in
+                        if index > 0 { Divider().padding(.horizontal, 4) }
+                        row(item.0, item.1).help(help ?? item.1)
+                    }
+                    footer()
+                }
+            }
+        }
+    }
+
+    private func identity(_ track: PlaybackSnapshot) -> some View {
+        VStack(spacing: 12) {
+            ArtworkView(path: track.path, pixels: 384, revision: artworkRevision)
+                .frame(width: 176, height: 176)
+                .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
+            VStack(spacing: 3) {
+                Text(track.displayTitle).font(.title3.weight(.semibold))
+                    .multilineTextAlignment(.center).lineLimit(3).help(track.displayTitle)
+                Text(track.artist ?? "Unknown Artist").font(.body).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center).lineLimit(2)
+            }
+            .textSelection(.enabled)
+            if track.missing {
+                Label("File unavailable. Reconnect its drive or restore it, then rescan.", systemImage: "exclamationmark.triangle.fill")
+                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 4)
+    }
+
+    private func file(_ track: PlaybackSnapshot) -> some View {
+        let url = URL(fileURLWithPath: track.path)
+        return section("File", rows: [
+            ("Name", url.lastPathComponent),
+            ("Where", (url.deletingLastPathComponent().path as NSString).abbreviatingWithTildeInPath),
+        ], help: track.path) {
+            Divider().padding(.horizontal, 4)
+            HStack {
+                Button { NSWorkspace.shared.activateFileViewerSelecting([url]) } label: {
+                    Label("Show in Finder", systemImage: "folder")
+                }
+                .disabled(track.missing).help("Reveal in Finder")
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(track.path, forType: .string)
+                } label: { Image(systemName: "doc.on.doc") }
+                    .accessibilityLabel("Copy file path").help("Copy file path")
+            }
+            .controlSize(.small).padding(.horizontal, 4).padding(.vertical, 8)
         }
     }
 
     private func row(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(label).foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            Text(value).multilineTextAlignment(.trailing).lineLimit(3).textSelection(.enabled).help(value)
-        }.font(.system(size: 12))
+            Spacer(minLength: 8)
+            Text(value).multilineTextAlignment(.trailing).lineLimit(3).textSelection(.enabled)
+        }
+        .font(.callout)
+        .padding(.vertical, 6).padding(.horizontal, 4)
+    }
+
+    private func channelLabel(_ channels: UInt32) -> String {
+        switch channels {
+        case 1: "Mono"
+        case 2: "Stereo"
+        default: "\(channels)"
+        }
     }
 }
+
